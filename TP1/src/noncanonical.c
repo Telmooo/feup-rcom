@@ -5,9 +5,14 @@
 #include <fcntl.h>
 #include <termios.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+#include "../include/utils.h"
+#include "../include/macros.h"
 
 #define BAUDRATE B38400
-#define MODEMDEVICE "/dev/ttyS1"
 #define _POSIX_SOURCE 1 /* POSIX compliant source */
 #define FALSE 0
 #define TRUE 1
@@ -16,25 +21,25 @@ volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
 {
-    int fd,c, res;
+    int fd;
     struct termios oldtio,newtio;
     char buf[255];
-    int i, sum = 0, speed = 0;
-    
+
     if ( (argc < 2) || 
   	     ((strcmp("/dev/ttyS0", argv[1])!=0) && 
-  	      (strcmp("/dev/ttyS1", argv[1])!=0) )) {
+  	      (strcmp("/dev/ttyS1", argv[1])!=0) &&
+          (strcmp("/dev/ttyS10", argv[1]) != 0) &&
+          (strcmp("/dev/ttyS11", argv[1]) != 0)) ) {
       printf("Usage:\tnserial SerialPort\n\tex: nserial /dev/ttyS1\n");
       exit(1);
     }
-
 
   /*
     Open serial port device for reading and writing and not as controlling tty
     because we don't want to get killed if linenoise sends CTRL-C.
   */
-
-
+  
+    
     fd = open(argv[1], O_RDWR | O_NOCTTY );
     if (fd <0) {perror(argv[1]); exit(-1); }
 
@@ -72,31 +77,30 @@ int main(int argc, char** argv)
 
     printf("New termios structure set\n");
 
-    printf("Enter something: ");
+    int no_read = 0;
 
-    gets(buf);
-    
-    res = write(fd,buf,strlen(buf) + 1);   
-    printf("%d bytes written\n", res);
+    while (STOP==FALSE) {       /* loop for input */
+      // missing error checking
+      int ret = read(fd, buf + no_read, 1);
+      if (buf[no_read] == 0)
+        STOP = TRUE;
 
+      no_read += ret;
+    }
 
-    char callback[255];
+    buf[no_read] = 0;
 
-    int rcv = read(fd, callback, 255);
+    printf("%s", buf);
 
-    printf("%d bytes received\n", rcv);
-    printf("String received: %s\n", callback);
- 
+    write(fd, buf, strlen(buf) + 1);
+
   /* 
-    O ciclo FOR e as instru��es seguintes devem ser alterados de modo a respeitar 
-    o indicado no gui�o 
+    O ciclo WHILE deve ser alterado de modo a respeitar o indicado no gui�o 
   */
 
-   
-    if ( tcsetattr(fd,TCSANOW,&oldtio) == -1) {
-      perror("tcsetattr");
-      exit(-1);
-    }
+
+
+    tcsetattr(fd,TCSANOW,&oldtio);
     close(fd);
     return 0;
 }
