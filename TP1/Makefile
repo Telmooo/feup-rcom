@@ -6,17 +6,17 @@ CFLAGS = -Wall
 SRCDIR = src
 ODIR = obj
 
-COMMON_SRCS := utils.c
+COMMON_SRCS := utils.c link_layer.c
 COMMON_SRC  := $(addprefix $(SRCDIR)/, $(COMMON_SRCS))
 COMMON_OBJ  := $(addprefix $(ODIR)/, $(COMMON_SRCS:%.c=%.o))
 
 WRITE_TARGET := writenoncanonical
-WRITE_SRCS := writenoncanonical.c
+WRITE_SRCS := writenoncanonical.c wr_state_machine.c
 WRITE_SRC  := $(addprefix $(SRCDIR)/, $(WRITE_SRCS))
 WRITE_OBJ  := $(addprefix $(ODIR)/, $(WRITE_SRCS:%.c=%.o))
 
 READ_TARGET := noncanonical
-READ_SRCS := noncanonical.c
+READ_SRCS := noncanonical.c rd_state_machine.c
 READ_SRC  := $(addprefix $(SRCDIR)/, $(READ_SRCS))
 READ_OBJ  := $(addprefix $(ODIR)/, $(READ_SRCS:%.c=%.o))
 

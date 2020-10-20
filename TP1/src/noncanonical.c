@@ -12,11 +12,6 @@
 #include "../include/utils.h"
 #include "../include/macros.h"
 
-#define BAUDRATE B38400
-#define _POSIX_SOURCE 1 /* POSIX compliant source */
-#define FALSE 0
-#define TRUE 1
-
 volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
@@ -85,6 +80,7 @@ int main(int argc, char** argv)
       if (buf[no_read] == 0)
         STOP = TRUE;
 
+      printf("%c\n", buf[no_read]);
       no_read += ret;
     }
 

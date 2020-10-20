@@ -12,12 +12,6 @@
 #include "../include/macros.h"
 #include "../include/utils.h"
 
-#define BAUDRATE B38400
-#define MODEMDEVICE "/dev/ttyS1"
-#define _POSIX_SOURCE 1 /* POSIX compliant source */
-#define FALSE 0
-#define TRUE 1
-
 volatile int STOP=FALSE;
 
 int main(int argc, char** argv)
@@ -83,6 +77,7 @@ int main(int argc, char** argv)
     if (res != sizeof(*trama_supervisao) / sizeof(char)) {
       perror("Failed to write");
     }
+    free(supervisao);
 
     strcpy(buf, "Heya");
     res = write(fd,buf,strlen(buf));
