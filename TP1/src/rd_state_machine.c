@@ -6,17 +6,25 @@
 
 #include "../include/macros.h"
 
-typedef enum RD_state {
-    RD_START, RD_FLAG_RCV, RD_A_RCV, RD_C_RCV, RD_BCC1_OK, RD_DATA, RD_STOP
-} RD_State;
+// TODO: Rename state machine (finish unification) && review machine
 
-struct rd_machine {
-    RD_State state;
-    char address, control;
-    bool escaped, hasData;
-    int dataIndex, dataSize;
-    char data[DATA_MAX_SIZE + 1];
-};
+int is_non_info_frame(char frame) {
+    return  frame == C_SET ||
+            frame == C_DISC ||
+            frame == C_UA ||
+            frame == RR(0) ||
+            frame == RR(1) ||
+            frame == REJ(0) ||
+            frame == REJ(1);
+}
+
+int is_info_frame(char frame) {
+    return frame == C_INFORMATION(0) || frame == C_INFORMATION(1);
+}
+
+int is_valid_control_frame(char frame) {
+    return is_non_info_frame(frame) || is_info_frame(frame);
+}
 
 RD_Machine* new_rd_machine() {
     RD_Machine *this = (RD_Machine*) malloc(sizeof(RD_Machine));
@@ -48,7 +56,7 @@ void rd_machine_copy_data(RD_Machine *this, char *dest) {
     memcpy(dest, this->data, this->dataSize * sizeof(char));
 }
 
-bool process_char(RD_Machine *this, char c) {
+bool rd_process_char(RD_Machine *this, char c) {
     switch (this->state)
     {
     case RD_START:
@@ -56,7 +64,7 @@ bool process_char(RD_Machine *this, char c) {
             this->state = RD_FLAG_RCV;
         break;
     case RD_FLAG_RCV:
-        if (c == A_EMISSOR || c == A_EMISSOR_RESPONSE) {
+        if (c == A_EMISSOR || c == A_RECEPTOR) {
             this->address = c;
             this->state = RD_A_RCV;
         }
@@ -66,7 +74,7 @@ bool process_char(RD_Machine *this, char c) {
 
     case RD_A_RCV:
         // Improve if
-        if (c == C_SET || c == C_DISC || c == C_UA || c == C_INFORMATION(0) || c == C_INFORMATION(1) || c == RR(0) || c == RR(1) || c == REJ(0) || c == REJ(1)) {
+        if (is_valid_control_frame(c)) {
             this->control = c;
             this->state = RD_C_RCV;
         }
@@ -87,26 +95,27 @@ bool process_char(RD_Machine *this, char c) {
 
     case RD_BCC1_OK:
         if (c == FLAG) {
-            // Was a supervision/unnunbered
+            if (is_non_info_frame(this->control)) {
+                this->state = RD_START;
+                this->hasData = false;
+                this->dataSize = 0;
+                return true;
+            }
             this->state = RD_START;
-            this->hasData = false;
-            this->dataSize = 0;
-            return true;
-        }
-        else {
-            // Is information
-            this->state = RD_DATA;
-            this->hasData = true;
-            this->dataIndex = 0;
+        } else {
+            if (is_info_frame(this->control)) {
+                this->state = RD_DATA;
+                this->hasData = true;
+                this->dataIndex = 0;
+            } else {
+                this->state = RD_START;
+            }
         }
         break;
     
     case RD_DATA:
         if (this->escaped) {
             if (c != ESCAPE && c != FLAG) {
-                // Unexpected char
-                // TODO:
-                fprintf(stderr, "Unexpected escaped character, don't know what to do\n");
                 this->state = RD_START;
                 this->escaped = false;
             }
@@ -126,9 +135,6 @@ bool process_char(RD_Machine *this, char c) {
                     bcc ^= this->data[i];
 
                 if (bcc != this->data[this->dataIndex - 1]) {
-                    // bcc was incorrect
-                    // TODO:
-                    fprintf(stderr, "Incorrect bcc2, don't know what to do\n");
                     this->state = RD_START;
                 }
                 else {

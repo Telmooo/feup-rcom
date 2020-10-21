@@ -3,15 +3,6 @@
 #include <stdlib.h>
 #include "../include/macros.h"
 
-typedef enum wr_state {
-    WR_START, WR_FLAG_RCV, WR_A_RCV, WR_C_RCV, WR_BCC_OK, WR_STOP
-} WR_State;
-
-struct wr_machine {
-    WR_State state;
-    char address, control;
-};
-
 WR_Machine* new_wr_machine() {
     WR_Machine *machine = (WR_Machine*) malloc(sizeof(WR_Machine));
     machine->state = WR_START;
@@ -26,7 +17,7 @@ char wr_machine_get_control(WR_Machine *machine) {
     return machine->control;
 }
 
-bool process_char(WR_Machine *machine, char c) {
+bool wr_process_char(WR_Machine *machine, char c) {
     switch (machine->state)
     {
     case WR_START:
