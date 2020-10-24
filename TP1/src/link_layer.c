@@ -15,12 +15,33 @@ int llopen(int port, device_type type) {
 
     int fd = open_serial_port(&link_layer);
 
+    if (fd == -1) {
+        return -1;
+    }
+
+    int ret;
     switch (type) {
         case TRANSMITTER:
-            set_serial_port(&link_layer);
+            ret = set_serial_port(&link_layer);
             break;
         case RECEIVER:
-            ack_serial_port(&link_layer);
+            ret = ack_serial_port(&link_layer);
             break;
     }
+
+    return ret;
+}
+
+int llwrite(int fd, char *buffer, int length) {
+
+    return -1;
+}
+
+int llread(int fd, char *buffer) {
+
+    // Read data
+
+    // Upon disc
+
+    return -1;
 }

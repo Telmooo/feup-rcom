@@ -3,8 +3,11 @@
 CC = gcc
 CFLAGS = -Wall
 
-SRCDIR = src
-ODIR = obj
+SRCDIR = ./src
+ODIR = ./obj
+IDIR = ./include
+
+IFLAGS = -I$(IDIR)
 
 COMMON_SRCS := utils.c link_layer.c
 COMMON_SRC  := $(addprefix $(SRCDIR)/, $(COMMON_SRCS))

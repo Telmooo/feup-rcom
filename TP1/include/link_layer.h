@@ -18,4 +18,3 @@ struct linkLayer {
     unsigned int numTransmissions; /*Número de tentativas em caso de falha*/
     char frame[BUF_SIZE]; /*Trama*/
 };
-
