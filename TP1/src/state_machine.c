@@ -1,10 +1,11 @@
-#include "../include/state_machine.h"
+#include "state_machine.h"
 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 
-#include "../include/macros.h"
+#include "macros.h"
+
 
 int is_non_info_frame(char frame) {
     return  frame == C_SET ||
@@ -24,18 +25,20 @@ int is_valid_control_frame(char frame) {
     return is_non_info_frame(frame) || is_info_frame(frame);
 }
 
-frame_t* new_state_machine(char device_type) {
+frame_t* new_state_machine(device_type dev_type) {
     frame_t *this = (frame_t*) malloc(sizeof(frame_t));
+    this->data = (char*) malloc(sizeof(char) * DATA_DEFAULT_SIZE);
     this->state = STATE_START;
     this->escaped = false;
     this->hasData = false;
     this->dataIndex = 0;
     this->dataSize = 0;
-    this->device_type = device_type;
+    this->device_type = dev_type;
     return this;
 }
 
 void free_state_machine(frame_t *this) {
+    free(this->data);
     free(this);
 }
 
@@ -43,18 +46,24 @@ void state_machine_copy_data(frame_t *this, char *dest) {
     memcpy(dest, this->data, this->dataSize * sizeof(char));
 }
 
+void state_machine_restart(frame_t *this) {
+    this->state = STATE_START;
+}
+
 bool state_machine_process_char(frame_t *this, char c) {
     switch (this->state) {
     case STATE_START:
+        // printf("NANI %x\n", c);
         if (c == FLAG)
             this->state = STATE_FLAG_RCV;
         break;
     case STATE_FLAG_RCV:
+        // printf("FLAG %x\n", c);
         if (c == A_EMISSOR || c == A_RECEPTOR) {
-            if (c == this->device_type) {
-                this->state = STATE_START;
-                return false;
-            }
+            // if (c == this->device_type) {
+            //     this->state = STATE_START;
+            //     return false;
+            // }
             this->address = c;
             this->state = STATE_A_RCV;
         }
@@ -63,6 +72,7 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_A_RCV:
+        // printf("A %x\n", c);
         if (is_valid_control_frame(c)) {
             this->control = c;
             this->state = STATE_C_RCV;
@@ -74,6 +84,7 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_C_RCV:
+        // printf("C %x\n", c);
         if ((this->address ^ this->control) == c)
             this->state = STATE_BCC1_OK;
         else if (c == FLAG)
@@ -83,6 +94,7 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_BCC1_OK:
+        // printf("BCC %x\n", c);
         if (c == FLAG) {
             if (is_non_info_frame(this->control)) {
                 this->state = STATE_START;
@@ -104,12 +116,16 @@ bool state_machine_process_char(frame_t *this, char c) {
     
     case STATE_DATA:
         if (this->escaped) {
-            if (c != ESCAPE && c != FLAG) {
-                this->state = STATE_START;
+            if (c == ESCAPED_ESCAPE) {
+                this->data[++this->dataIndex] = ESCAPE;
                 this->escaped = false;
             }
+            else if (c == ESCAPED_FLAG) {
+                this->data[++this->dataIndex] = FLAG;
+                this->escaped = false;               
+            }
             else {
-                this->data[++this->dataIndex] = c;
+                this->state = STATE_START;
                 this->escaped = false;
             }
         }

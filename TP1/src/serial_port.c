@@ -9,9 +9,15 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+// DEPRECATED
+#include <strings.h>
+
+volatile int STOP=FALSE;
 
 struct termios oldtio;
-void *state_machines[2];
 
 int open_serial_port(LinkLayer *layer) {
     int fd = open(layer->port, O_RDWR | O_NOCTTY );
@@ -33,7 +39,7 @@ int open_serial_port(LinkLayer *layer) {
     newtio.c_lflag = 0;
 
     newtio.c_cc[VTIME]    = 0;   /* inter-character timer unused */
-    newtio.c_cc[VMIN]     = 5;   /* blocking read until 5 chars received */
+    newtio.c_cc[VMIN]     = 1;   /* blocking read until 1 char received */
   /* 
     VTIME e VMIN devem ser alterados de forma a proteger com um temporizador a 
     leitura do(s) pr�ximo(s) caracter(es)
@@ -49,115 +55,132 @@ int open_serial_port(LinkLayer *layer) {
     return fd;
 }
 
-char* create_supervision_frame(char A, char C) {
-    char *frame = malloc(5 * sizeof(char));
+int close_serial_port(LinkLayer *layer) {
+    sleep(1);  // TODO: Why this?
+    if (tcsetattr(layer->fd, TCSANOW, &oldtio) < 0) {
+        return -1;
+    }
+
+    if (close(layer->fd) < 0) {
+        return -1;
+    }
+
+    return 0;
+}
+
+void print_frame(char *frame) {
+    printf("%x ", frame[0]);
+    printf("%x ", frame[1]);
+    printf("%x ", frame[2]);
+    printf("%x ", frame[3]);
+    printf("%x ", frame[4]);
+    printf("\n");
+}
+
+void create_control_frame(char* frame, char A, char C) {
     frame[0] = FLAG;
     frame[1] = A;
     frame[2] = C;
     frame[3] = A ^ C;
     frame[4] = FLAG;
-    return frame;
 }
 
-void send_set_frame(LinkLayer *layer) {
-    char *set_frame = create_supervision_frame(A_EMISSOR, C_SET);
+int read_control_frame(LinkLayer *layer, char address, char control) {
+    char c;
+    bool done = false;
+    while (!done) {
+        int ret = read(layer->fd, &c, 1);
 
-    write(layer->fd, set_frame, 5);
-
-    // TODO: update retries 
-}
-
-char* read_control_frame(LinkLayer *layer, char control_field, char device_type) {
-    // F A C BCC1 F
-
-    char *received_frame = (char*)malloc(sizeof(char) * 5);
-
-    state_machine_t *state_machine = new_state_machine(device_type);
-
-    int current = 0;
-
-    for (; current < BUF_SIZE && state_machine->state != STATE_STOP; current++) {
-        if (read(layer->fd, &received_frame[current], 1) == -1) {
-            return NULL;
-        } 
-
-        if (state_machine_process_char(state_machine, received_frame[current])) {
-            if (state_machine->control != control_field) {
-                free(received_frame);
-                free_state_machine(state_machine);
-                return NULL;
-            }
-            break;
+        if (ret == -1) {
+            perror("read_control_frame read");
+            return 1;
+        } else if (ret == 1) {
+            done = state_machine_process_char(layer->state_machine, c);
         }
     }
 
-    return received_frame;
+    if (layer->state_machine->control != control) {
+        printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
+        return 1;
+    }
+
+    return 0;
 }
 
-char* read_data(LinkLayer *layer) {
+int read_control_frame_timeout(LinkLayer *layer, char A, char C) {
+    char c;
+    bool done = false;
+    while (!done) {
+        alarm(layer->timeout);
+        int ret = read(layer->fd, &c, 1);
+        alarm(0);
 
-    char received_frame[BUF_SIZE];
+        if (ret == -1) {
+            if (errno != EINTR)
+                perror("read_control_frame_timeout read");
+            return 1;
+        } else if (ret == 1) {
+            done = state_machine_process_char(layer->state_machine, c);
+        }
+    }
 
-    state_machine_t *state_machine = new_state_machine(A_RECEPTOR);
+    if (layer->state_machine->control != C) {
+        printf("Unexpected control field: Expected '%c' but received '%c'\n", C, layer->state_machine->control);
+        return 1;
+    }
+
+    return 0;
+}
+
+int read_data(LinkLayer *layer) {
+
+    frame_t *state_machine = new_state_machine(A_RECEPTOR);
 
     int current = 0;
 
     for (; current < BUF_SIZE; current++) {
         char ch;
         if (read(layer->fd, &ch, 1) != 1) {
-            return NULL; // TODO
+            return -1; // TODO
         }
 
         if (state_machine_process_char(state_machine, ch)) {
             if (state_machine->control != C_INFORMATION(layer->sequenceNumber)) {
                 free_state_machine(state_machine);
-                return NULL;
-            }
-            char *data;
-            state_machine_copy_data(state_machine, data);
-            free_state_machine(state_machine);//TODO: change state machine to layer
-            return data;
-        }
-    }
-    return NULL;
-}
-
-int set_serial_port(LinkLayer *layer) {
-    // F A C BCC1 F
-    char *frame = create_supervision_frame(A_EMISSOR, C_SET);
-    int ntries = layer->numTransmissions;
-    while (ntries) {
-        write(layer->fd, frame, 5);
-
-        alarm(layer->timeout);
-
-        char *received = read_control_frame(layer, C_UA, A_EMISSOR);
-
-        alarm(0);
-
-        if (received != NULL) {
-            free(received);
-            return 0;
-        } else {
-            if (errno != EINTR) {
                 return -1;
             }
-
-            ntries--;
+            
         }
     }
-
     return -1;
 }
 
+int set_serial_port(LinkLayer *layer) {
+    char frame[CONTROL_FRAME_SIZE];
+    create_control_frame(frame, A_EMISSOR, C_SET);
+
+    int ntries = layer->numTransmissions;
+    while (ntries) {
+        write(layer->fd, frame, CONTROL_FRAME_SIZE);
+        // print_frame(frame);
+        if (read_control_frame_timeout(layer, A_EMISSOR, C_UA) == 0)
+            return 0;
+        ntries--;
+    }
+
+    return 1;
+}
+
 int ack_serial_port(LinkLayer *layer) {
+    
+    if (read_control_frame(layer, C_SET, A_EMISSOR) != 0) {
+        printf("ack_serial_port: Failed to read control frame\n");
+    }
+    else {
+        char ua_frame[CONTROL_FRAME_SIZE];
+        create_control_frame(ua_frame, A_RECEPTOR_RESPONSE, C_UA);
 
-    char *received = read_control_frame(layer, C_SET, A_RECEPTOR);
-
-    if (received != NULL) {
-        char *ua_frame = create_supervision_frame(A_RECEPTOR, C_UA);
-
-        if (write(layer->fd, ua_frame, 5) != 5)
+        if (write(layer->fd, ua_frame, CONTROL_FRAME_SIZE) != CONTROL_FRAME_SIZE)
             return -1;
 
         return 0;

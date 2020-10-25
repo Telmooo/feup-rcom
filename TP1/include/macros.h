@@ -6,10 +6,10 @@
 #define FALSE 0
 #define TRUE 1
 
-#define LL_TIMEOUT 1
+#define LL_TIMEOUT 3
 #define LL_RETRIES 3
 
-#define DATA_MAX_SIZE 256
+#define DATA_DEFAULT_SIZE 256
 
 #define FLAG 0x7E
 
@@ -40,6 +40,12 @@
 // Is either 1 or 0
 #define REJ(N) (0x01 | (N << 8))
 
+
+#define CONTROL_FRAME_SIZE 5
+
+
 #define ESCAPE 0x7d
+#define ESCAPED_FLAG 0x5e
+#define ESCAPED_ESCAPE 0x5d
 
 #define BUF_SIZE 256
