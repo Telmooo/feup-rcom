@@ -68,6 +68,10 @@ int close_serial_port(LinkLayer *layer) {
     return 0;
 }
 
+inline int reverse_sequence_number(int seq) {
+    return seq ^ 0x01;
+}
+
 void print_frame(char *frame) {
     printf("%x ", frame[0]);
     printf("%x ", frame[1]);
@@ -88,28 +92,29 @@ void create_control_frame(char* frame, char A, char C) {
 static int read_frame_base(LinkLayer *layer, char address, char control, ssize_t (*read_func)(int, void *, size_t, LinkLayer*)) {
     char c;
     bool done = false;
+    int ret;
     while (!done) {
-        int ret = read_func(layer->fd, &c, 1, layer);
+        ret = read_func(layer->fd, &c, 1, layer);
 
         if (ret == -1) {
             perror("read_control_frame read");
-            return 1;
+            return -1;
         } else if (ret == 1) {
             done = state_machine_process_char(layer->state_machine, c);
         }
     }
 
-    if (layer->state_machine->address != address) {
+    if (address != 0 && layer->state_machine->address != address) {
         printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
-        return 1;
+        return -1;
     }
 
-    if (layer->state_machine->control != control) {
+    if (control != 0 && layer->state_machine->control != control) {
         printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
-        return 1;
+        return -1;
     }
 
-    return 0;
+    return ret;
 }
 
 static inline ssize_t read_wrapper(int fd, void* buf, size_t length, LinkLayer *layer) {
@@ -143,15 +148,23 @@ static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
     }
 }
 
-int stuff_buffer(char *stuffed, char *buffer, int length) {
-    stuffed = (char*) malloc((length * 2 + 2) * sizeof(char));
-    int stuffed_i = 0;
+int stuff_frame(char *stuffed, char *buffer, int length, int sequence_number) {
+    stuffed = (char*) malloc((5 + length * 2 + 2) * sizeof(char));
+
+    stuffed[0] = FLAG;
+    stuffed[1] = A_EMISSOR;
+    stuffed[2] = C_INFORMATION(sequence_number);
+    stuffed[3] = A_EMISSOR ^ C_INFORMATION(sequence_number);
+
+    int stuffed_i = 4;
+    
     char bcc2 = 0;
     for (int i = 0; i < length; ++i) {
         bcc2 ^= buffer[i];
         stuff_char(stuffed, &stuffed_i, buffer[i]);
     }
     stuff_char(stuffed, &stuffed_i, bcc2);
+    stuffed[stuffed_i++] = FLAG;
 
     return stuffed_i;
 }
@@ -164,7 +177,7 @@ int set_serial_port(LinkLayer *layer) {
     while (ntries) {
         write(layer->fd, frame, CONTROL_FRAME_SIZE);
         // print_frame(frame);
-        if (read_frame_timeout(layer, A_RECEPTOR_RESPONSE, C_UA) == 0)
+        if (read_frame_timeout(layer, A_RECEPTOR_RESPONSE, C_UA) != -1)
             return 0;
         ntries--;
     }
@@ -174,7 +187,7 @@ int set_serial_port(LinkLayer *layer) {
 
 int ack_serial_port(LinkLayer *layer) {
     
-    if (read_frame(layer, C_SET, A_EMISSOR) != 0) {
+    if (read_frame(layer, C_SET, A_EMISSOR) == -1) {
         printf("ack_serial_port: Failed to read control frame\n");
     }
     else {
@@ -191,13 +204,27 @@ int ack_serial_port(LinkLayer *layer) {
 }
 
 int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
+    int ret;
+    bool send = true;
     int ntries = layer->numTransmissions;
     while (ntries) {
-        write(layer->fd, buffer, length);
-        if (read_frame_timeout(layer, A_EMISSOR, C_UA) == 0)
-            return 0;
+        if (send)
+            write(layer->fd, buffer, length);
+        send = true;
+        if ((ret = read_frame_timeout(layer, A_EMISSOR, 0)) != -1) {
+            if (state_machine_get_control(layer->state_machine) == RR(reverse_sequence_number(layer->sequenceNumber))) {
+                return 0;
+            }
+            if (state_machine_get_control(layer->state_machine) != REJ(reverse_sequence_number(layer->sequenceNumber))) {
+                send = false;
+            }
+            // We don't want to decrease the num of tries, we only decrease in timeouts
+            ntries++;
+        }
         ntries--;
     }
 
     return -1;
 }
+
+

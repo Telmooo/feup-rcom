@@ -27,6 +27,7 @@ static inline int is_valid_frame(char control) {
 frame_t* new_state_machine(device_type dev_type) {
     frame_t *this = (frame_t*) malloc(sizeof(frame_t));
     this->data = (char*) malloc(sizeof(char) * DATA_DEFAULT_SIZE);
+    this->successful = false;
     this->state = STATE_START;
     this->escaped = false;
     this->hasData = false;
@@ -47,6 +48,27 @@ void state_machine_copy_data(frame_t *this, char *dest) {
 
 void state_machine_restart(frame_t *this) {
     this->state = STATE_START;
+    this->successful = false;
+}
+
+inline bool state_machine_is_data(frame_t *this) {
+    return this->hasData;
+}
+
+inline bool state_machine_is_data_valid(frame_t *this) {
+    return this->successful && state_machine_is_data(this);
+}
+
+inline char state_machine_get_control(frame_t *this) {
+    return this->control;
+}
+
+inline char state_machine_get_address(frame_t *this) {
+    return this->address;
+}
+
+inline char state_machine_get_data_size(frame_t *this) {
+    return this->dataSize;
 }
 
 bool state_machine_process_char(frame_t *this, char c) {

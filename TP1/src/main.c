@@ -30,19 +30,19 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    // if (t == TRANSMITTER) {
-    //     int ret = llwrite(fd, "NieR: Automata Original Soundtrack", 34);
-    //     printf("Written %d chars\n", ret);
-    // }
-    // else {
-    //     char *c = NULL;
-    //     int size = llread(fd, c);
-    //     printf("Read %d chars\nChars: ", size);
-    //     for (int i = 0; i < size; ++i) {
-    //         printf("%c", c[i]);
-    //     }
-    //     printf("\n");
-    // }
+    if (t == TRANSMITTER) {
+        int ret = llwrite(fd, "NieR: Automata Original Soundtrack", 34);
+        printf("Written %d chars\n", ret);
+    }
+    else {
+        char *c = NULL;
+        int size = llread(fd, c);
+        printf("Read %d chars\nChars: ", size);
+        for (int i = 0; i < size; ++i) {
+            printf("%c", c[i]);
+        }
+        printf("\n");
+    }
 
     if (llclose(fd)) {
         printf("Failed to close link layer\n");

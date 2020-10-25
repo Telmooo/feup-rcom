@@ -51,23 +51,26 @@ int llopen(int port, device_type type) {
 
 int llwrite(int fd, char *buffer, int length) {
     char *stuffed = NULL;
-    int stuffed_length = stuff_buffer(stuffed, buffer, length);
+    int stuffed_length = stuff_frame(stuffed, buffer, length, link_layer.sequenceNumber);
 
-    return send_info_serial_port(&link_layer, stuffed, stuffed_length);
+    int ret = send_info_serial_port(&link_layer, stuffed, stuffed_length);
+    if (ret != -1) {
+        link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
+    }
+    return ret;
 }
 
 int llread(int fd, char *buffer) {
 
     // Read data
-
-    // Upon disc
+    
 
     return -1;
 }
 
 int llclose(int fd) {
-    int ret = close_serial_port(&link_layer);
     // TODO: DISC
+    int ret = close_serial_port(&link_layer);
     free_state_machine(link_layer.state_machine);
     return ret;
 }
