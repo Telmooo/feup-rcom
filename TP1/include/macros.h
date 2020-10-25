@@ -1,8 +1,8 @@
 #pragma once
 
-#ifndef DEBUG_STATE_MACHINE
-#define DEBUG_STATE_MACHINE
-#endif
+// #ifndef DEBUG_STATE_MACHINE
+// #define DEBUG_STATE_MACHINE
+// #endif
 
 #define BAUDRATE 0xB38400
 // #define MODEMDEVICE "/dev/ttyS1"
@@ -44,6 +44,8 @@
 // Is either 1 or 0
 #define REJ(N) (0x01 | (N << 8))
 
+// Used on our custom funtions (doesn't collide with anything else)
+#define READ_FRAME_IGNORE_CHECK 0xFF
 
 #define CONTROL_FRAME_SIZE 5
 

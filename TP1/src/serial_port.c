@@ -56,7 +56,7 @@ int open_serial_port(LinkLayer *layer) {
 }
 
 int close_serial_port(LinkLayer *layer) {
-    sleep(1);  // TODO: Why this?
+    sleep(1);
     if (tcsetattr(layer->fd, TCSANOW, &oldtio) < 0) {
         return -1;
     }
@@ -91,25 +91,27 @@ void create_control_frame(char* frame, char A, char C) {
 
 static int read_frame_base(LinkLayer *layer, char address, char control, ssize_t (*read_func)(int, void *, size_t, LinkLayer*)) {
     char c;
-    bool done = false;
+    bool done = 1;
     int ret;
-    while (!done) {
+    while (done) {
         ret = read_func(layer->fd, &c, 1, layer);
 
         if (ret == -1) {
-            perror("read_control_frame read");
+            if (errno != EINTR) {
+                perror("read_control_frame read");
+            }
             return -1;
         } else if (ret == 1) {
             done = state_machine_process_char(layer->state_machine, c);
         }
     }
 
-    if (address != 0 && layer->state_machine->address != address) {
+    if (address != READ_FRAME_IGNORE_CHECK && layer->state_machine->address != address) {
         printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
         return -1;
     }
 
-    if (control != 0 && layer->state_machine->control != control) {
+    if (control != READ_FRAME_IGNORE_CHECK && layer->state_machine->control != control) {
         printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
         return -1;
     }
@@ -148,23 +150,27 @@ static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
     }
 }
 
-int stuff_frame(char *stuffed, char *buffer, int length, int sequence_number) {
-    stuffed = (char*) malloc((5 + length * 2 + 2) * sizeof(char));
+int stuff_frame(char **stuffed, char *buffer, int length, int sequence_number) {
+    *stuffed = (char*) malloc((5 + length * 2 + 2) * sizeof(char));
+    if (*stuffed == NULL) {
+        printf("Failed to allocate stuffed frame\n");
+        return 1;
+    }
 
-    stuffed[0] = FLAG;
-    stuffed[1] = A_EMISSOR;
-    stuffed[2] = C_INFORMATION(sequence_number);
-    stuffed[3] = A_EMISSOR ^ C_INFORMATION(sequence_number);
-
+    (*stuffed)[0] = FLAG;
+    (*stuffed)[1] = A_EMISSOR;
+    (*stuffed)[2] = C_INFORMATION(sequence_number);
+    (*stuffed)[3] = A_EMISSOR ^ C_INFORMATION(sequence_number);
     int stuffed_i = 4;
     
     char bcc2 = 0;
     for (int i = 0; i < length; ++i) {
         bcc2 ^= buffer[i];
-        stuff_char(stuffed, &stuffed_i, buffer[i]);
+        stuff_char(*stuffed, &stuffed_i, buffer[i]);
     }
-    stuff_char(stuffed, &stuffed_i, bcc2);
-    stuffed[stuffed_i++] = FLAG;
+    
+    stuff_char(*stuffed, &stuffed_i, bcc2);
+    (*stuffed)[stuffed_i++] = FLAG;
 
     return stuffed_i;
 }
@@ -209,9 +215,9 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
     int ntries = layer->numTransmissions;
     while (ntries) {
         if (send)
-            write(layer->fd, buffer, length);
+            ret = write(layer->fd, buffer, length);
         send = true;
-        if ((ret = read_frame_timeout(layer, A_EMISSOR, 0)) != -1) {
+        if ((ret = read_frame_timeout(layer, A_EMISSOR, READ_FRAME_IGNORE_CHECK)) != -1) {
             if (state_machine_get_control(layer->state_machine) == RR(reverse_sequence_number(layer->sequenceNumber))) {
                 return 0;
             }
@@ -227,4 +233,12 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
     return -1;
 }
 
-
+int read_info_frame(LinkLayer *layer) {
+    int ret;
+    while (true) {
+        if ((ret = read_frame(layer, A_EMISSOR, C_INFORMATION(reverse_sequence_number(layer->sequenceNumber)))) != -1) {
+            if (state_machine_is_data_valid(layer->state_machine))
+                return 0;
+        }
+    }
+}

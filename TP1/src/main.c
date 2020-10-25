@@ -30,18 +30,22 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    if (t == TRANSMITTER) {
-        int ret = llwrite(fd, "NieR: Automata Original Soundtrack", 34);
-        printf("Written %d chars\n", ret);
-    }
-    else {
-        char *c = NULL;
-        int size = llread(fd, c);
-        printf("Read %d chars\nChars: ", size);
-        for (int i = 0; i < size; ++i) {
-            printf("%c", c[i]);
+    for (int i = 0; i < 2; ++i) {
+        if (t == TRANSMITTER) {
+            int ret = llwrite(fd, "NieR: Automata ~ Original Soundtrack", 36);
+            // int ret = llwrite(fd, "ab", 2);
+            printf("Written %d chars\n", ret);
         }
-        printf("\n");
+        else {
+            char *msg = NULL;
+            int size = llread(fd, &msg);
+            printf("Read %d chars:\n_", size);
+            
+            for (int i = 0; i < size; ++i) {
+                printf("%c", msg[i]);
+            }
+            printf("_\n");
+        }
     }
 
     if (llclose(fd)) {

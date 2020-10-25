@@ -19,6 +19,6 @@ int llopen(int port, device_type type);
 
 int llwrite(int fd, char *buffer, int length);
 
-int llread(int fd, char *buffer);
+int llread(int fd, char **buffer);
 
 int llclose(int fd);

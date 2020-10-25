@@ -41,17 +41,18 @@ int llopen(int port, device_type type) {
     }
 
     if (ret != 0) {
+        printf("SET/UA failed\n");
         close_serial_port(&link_layer);
         free_state_machine(link_layer.state_machine);
         return -1;
     }
 
-    return link_layer.fd;;
+    return link_layer.fd;
 }
 
 int llwrite(int fd, char *buffer, int length) {
     char *stuffed = NULL;
-    int stuffed_length = stuff_frame(stuffed, buffer, length, link_layer.sequenceNumber);
+    int stuffed_length = stuff_frame(&stuffed, buffer, length, link_layer.sequenceNumber);
 
     int ret = send_info_serial_port(&link_layer, stuffed, stuffed_length);
     if (ret != -1) {
@@ -60,12 +61,15 @@ int llwrite(int fd, char *buffer, int length) {
     return ret;
 }
 
-int llread(int fd, char *buffer) {
-
+int llread(int fd, char **buffer) {
     // Read data
-    
+    if (read_info_frame(&link_layer)) {
+        return -1;
+    }
 
-    return -1;
+    // Allocate & Copy data to buffer
+    state_machine_copy_data(link_layer.state_machine, buffer);
+    return state_machine_get_data_size(link_layer.state_machine);
 }
 
 int llclose(int fd) {

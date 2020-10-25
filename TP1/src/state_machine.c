@@ -42,8 +42,14 @@ void free_state_machine(frame_t *this) {
     free(this);
 }
 
-void state_machine_copy_data(frame_t *this, char *dest) {
-    memcpy(dest, this->data, this->dataSize * sizeof(char));
+void state_machine_copy_data(frame_t *this, char **dest) {
+    printf("%d\n", state_machine_get_data_size(this));
+    *dest = (char*) malloc(state_machine_get_data_size(this) * sizeof(char));
+    if (*dest == NULL) {
+        printf("state_machine_copy_data: Failed to allocate memory for dest\n");
+        return;
+    }
+    memcpy(*dest, this->data, state_machine_get_data_size(this) * sizeof(char));
 }
 
 void state_machine_restart(frame_t *this) {
@@ -71,7 +77,7 @@ inline char state_machine_get_data_size(frame_t *this) {
     return this->dataSize;
 }
 
-bool state_machine_process_char(frame_t *this, char c) {
+int state_machine_process_char(frame_t *this, char c) {
     switch (this->state) {
     case STATE_START:
         #ifdef DEBUG_STATE_MACHINE
@@ -87,7 +93,7 @@ bool state_machine_process_char(frame_t *this, char c) {
         if (c == A_EMISSOR || c == A_RECEPTOR) {
             // if (c == this->device_type) {
             //     this->state = STATE_START;
-            //     return false;
+            //     return 1;
             // }
             this->address = c;
             this->state = STATE_A_RCV;
@@ -131,30 +137,33 @@ bool state_machine_process_char(frame_t *this, char c) {
                 this->state = STATE_START;
                 this->hasData = false;
                 this->dataSize = 0;
-                return true;
+                return 0;
             }
             this->state = STATE_START;
+            break;
         } else {
             if (is_info_frame(this->control)) {
                 this->state = STATE_DATA;
+                this->escaped = false;
                 this->hasData = true;
                 this->dataIndex = 0;
+                // INTENTIONAL CASCADE FROM BCC1_RCV TO DATA
             } else {
                 this->state = STATE_START;
+                break;
             }
         }
-        break;
 
     case STATE_DATA:
         #ifdef DEBUG_STATE_MACHINE
-        printf("DATA 0x%x", c);
+        printf("DATA 0x%x ", c);
         #endif
         if (this->escaped) {
             if (c == ESCAPED_ESCAPE) {
-                this->data[++this->dataIndex] = ESCAPE;
+                this->data[this->dataIndex++] = ESCAPE;
                 this->escaped = false;
             } else if (c == ESCAPED_FLAG) {
-                this->data[++this->dataIndex] = FLAG;
+                this->data[this->dataIndex++] = FLAG;
                 this->escaped = false;               
             } else if (c == FLAG) {
                 this->state = STATE_FLAG_RCV;
@@ -171,17 +180,18 @@ bool state_machine_process_char(frame_t *this, char c) {
             else if (c == FLAG) {
                 // Verify BCC2
                 char bcc2 = 0;
-                for (int i = 0; i < this->dataIndex - 2; ++i)
+                for (int i = 0; i < this->dataIndex - 1; ++i)
                     bcc2 ^= this->data[i];
 
                 this->successful = (bcc2 == this->data[this->dataIndex - 1]);
+                this->dataSize = this->dataIndex - 1;
 
                 this->state = STATE_START;
-                return true;
+                return 0;
             }
             else {
                 // Regular data
-                this->data[++this->dataIndex] = c;
+                this->data[this->dataIndex++] = c;
             }
         }
 
@@ -192,5 +202,5 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
     }
 
-    return false;
+    return 1;
 }
