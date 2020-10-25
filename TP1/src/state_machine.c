@@ -6,23 +6,22 @@
 
 #include "macros.h"
 
-
-int is_non_info_frame(char frame) {
-    return  frame == C_SET ||
-            frame == C_DISC ||
-            frame == C_UA ||
-            frame == RR(0) ||
-            frame == RR(1) ||
-            frame == REJ(0) ||
-            frame == REJ(1);
+static inline int is_control_frame(char control) {
+    return  control == C_SET ||
+            control == C_DISC ||
+            control == C_UA ||
+            control == RR(0) ||
+            control == RR(1) ||
+            control == REJ(0) ||
+            control == REJ(1);
 }
 
-int is_info_frame(char frame) {
-    return frame == C_INFORMATION(0) || frame == C_INFORMATION(1);
+static inline int is_info_frame(char control) {
+    return control == C_INFORMATION(0) || control == C_INFORMATION(1);
 }
 
-int is_valid_control_frame(char frame) {
-    return is_non_info_frame(frame) || is_info_frame(frame);
+static inline int is_valid_frame(char control) {
+    return is_control_frame(control) || is_info_frame(control);
 }
 
 frame_t* new_state_machine(device_type dev_type) {
@@ -53,12 +52,16 @@ void state_machine_restart(frame_t *this) {
 bool state_machine_process_char(frame_t *this, char c) {
     switch (this->state) {
     case STATE_START:
-        // printf("NANI %x\n", c);
+        #ifdef DEBUG_STATE_MACHINE
+        printf("START %x\n", c);
+        #endif
         if (c == FLAG)
             this->state = STATE_FLAG_RCV;
         break;
     case STATE_FLAG_RCV:
-        // printf("FLAG %x\n", c);
+        #ifdef DEBUG_STATE_MACHINE
+        printf("FLAG_RCV %x\n", c);
+        #endif
         if (c == A_EMISSOR || c == A_RECEPTOR) {
             // if (c == this->device_type) {
             //     this->state = STATE_START;
@@ -72,8 +75,10 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_A_RCV:
-        // printf("A %x\n", c);
-        if (is_valid_control_frame(c)) {
+        #ifdef DEBUG_STATE_MACHINE
+        printf("A_RCV %x\n", c);
+        #endif
+        if (is_valid_frame(c)) {
             this->control = c;
             this->state = STATE_C_RCV;
         }
@@ -84,7 +89,9 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_C_RCV:
-        // printf("C %x\n", c);
+        #ifdef DEBUG_STATE_MACHINE
+        printf("C_RCV %x\n", c);
+        #endif
         if ((this->address ^ this->control) == c)
             this->state = STATE_BCC1_OK;
         else if (c == FLAG)
@@ -94,9 +101,11 @@ bool state_machine_process_char(frame_t *this, char c) {
         break;
 
     case STATE_BCC1_OK:
-        // printf("BCC %x\n", c);
+        #ifdef DEBUG_STATE_MACHINE
+        printf("BCC1_OK 0x%x\n", c);
+        #endif
         if (c == FLAG) {
-            if (is_non_info_frame(this->control)) {
+            if (is_control_frame(this->control)) {
                 this->state = STATE_START;
                 this->hasData = false;
                 this->dataSize = 0;
@@ -113,18 +122,22 @@ bool state_machine_process_char(frame_t *this, char c) {
             }
         }
         break;
-    
+
     case STATE_DATA:
+        #ifdef DEBUG_STATE_MACHINE
+        printf("DATA 0x%x", c);
+        #endif
         if (this->escaped) {
             if (c == ESCAPED_ESCAPE) {
                 this->data[++this->dataIndex] = ESCAPE;
                 this->escaped = false;
-            }
-            else if (c == ESCAPED_FLAG) {
+            } else if (c == ESCAPED_FLAG) {
                 this->data[++this->dataIndex] = FLAG;
                 this->escaped = false;               
-            }
-            else {
+            } else if (c == FLAG) {
+                this->state = STATE_FLAG_RCV;
+                this->escaped = false;
+            } else {
                 this->state = STATE_START;
                 this->escaped = false;
             }
@@ -135,17 +148,14 @@ bool state_machine_process_char(frame_t *this, char c) {
             }
             else if (c == FLAG) {
                 // Verify BCC2
-                char bcc = 0;
+                char bcc2 = 0;
                 for (int i = 0; i < this->dataIndex - 2; ++i)
-                    bcc ^= this->data[i];
+                    bcc2 ^= this->data[i];
 
-                if (bcc != this->data[this->dataIndex - 1]) {
-                    this->state = STATE_START;
-                }
-                else {
-                    this->state = STATE_START;
-                    return true;
-                }
+                this->successful = (bcc2 == this->data[this->dataIndex - 1]);
+
+                this->state = STATE_START;
+                return true;
             }
             else {
                 // Regular data

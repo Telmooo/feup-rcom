@@ -24,7 +24,7 @@ struct _frame {
     sm_state_t state;
     device_type dev_type;
     char address, control, device_type;
-    bool escaped, hasData;
+    bool escaped, hasData, successful;
     int dataIndex, dataSize;
     char* data;
 };

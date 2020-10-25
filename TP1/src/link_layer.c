@@ -50,8 +50,10 @@ int llopen(int port, device_type type) {
 }
 
 int llwrite(int fd, char *buffer, int length) {
+    char *stuffed = NULL;
+    int stuffed_length = stuff_buffer(stuffed, buffer, length);
 
-    return -1;
+    return send_info_serial_port(&link_layer, stuffed, stuffed_length);
 }
 
 int llread(int fd, char *buffer) {

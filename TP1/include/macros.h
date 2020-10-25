@@ -1,5 +1,9 @@
 #pragma once
 
+#ifndef DEBUG_STATE_MACHINE
+#define DEBUG_STATE_MACHINE
+#endif
+
 #define BAUDRATE 0xB38400
 // #define MODEMDEVICE "/dev/ttyS1"
 // #define _POSIX_SOURCE 1 /* POSIX compliant source */

@@ -85,11 +85,11 @@ void create_control_frame(char* frame, char A, char C) {
     frame[4] = FLAG;
 }
 
-int read_control_frame(LinkLayer *layer, char address, char control) {
+static int read_frame_base(LinkLayer *layer, char address, char control, ssize_t (*read_func)(int, void *, size_t, LinkLayer*)) {
     char c;
     bool done = false;
     while (!done) {
-        int ret = read(layer->fd, &c, 1);
+        int ret = read_func(layer->fd, &c, 1, layer);
 
         if (ret == -1) {
             perror("read_control_frame read");
@@ -97,6 +97,11 @@ int read_control_frame(LinkLayer *layer, char address, char control) {
         } else if (ret == 1) {
             done = state_machine_process_char(layer->state_machine, c);
         }
+    }
+
+    if (layer->state_machine->address != address) {
+        printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
+        return 1;
     }
 
     if (layer->state_machine->control != control) {
@@ -107,52 +112,48 @@ int read_control_frame(LinkLayer *layer, char address, char control) {
     return 0;
 }
 
-int read_control_frame_timeout(LinkLayer *layer, char A, char C) {
-    char c;
-    bool done = false;
-    while (!done) {
-        alarm(layer->timeout);
-        int ret = read(layer->fd, &c, 1);
-        alarm(0);
-
-        if (ret == -1) {
-            if (errno != EINTR)
-                perror("read_control_frame_timeout read");
-            return 1;
-        } else if (ret == 1) {
-            done = state_machine_process_char(layer->state_machine, c);
-        }
-    }
-
-    if (layer->state_machine->control != C) {
-        printf("Unexpected control field: Expected '%c' but received '%c'\n", C, layer->state_machine->control);
-        return 1;
-    }
-
-    return 0;
+static inline ssize_t read_wrapper(int fd, void* buf, size_t length, LinkLayer *layer) {
+    return read(fd, buf, length);
 }
 
-int read_data(LinkLayer *layer) {
+int read_frame(LinkLayer *layer, char address, char control) {
+    return read_frame_base(layer, address, control, read_wrapper);
+}
 
-    frame_t *state_machine = new_state_machine(A_RECEPTOR);
+static inline ssize_t timeout_read(int fd, void* buf, size_t length, LinkLayer *layer) {
+    alarm(layer->timeout);
+    int ret = read(fd, buf, length);
+    alarm(0);
+    return ret;
+}
 
-    int current = 0;
+int read_frame_timeout(LinkLayer *layer, char address, char control) {
+    return read_frame_base(layer, address, control, timeout_read);
+}
 
-    for (; current < BUF_SIZE; current++) {
-        char ch;
-        if (read(layer->fd, &ch, 1) != 1) {
-            return -1; // TODO
-        }
-
-        if (state_machine_process_char(state_machine, ch)) {
-            if (state_machine->control != C_INFORMATION(layer->sequenceNumber)) {
-                free_state_machine(state_machine);
-                return -1;
-            }
-            
-        }
+static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
+    if (to_stuff == FLAG) {
+        stuffed[(*stuffed_i)++] = ESCAPE;
+        stuffed[(*stuffed_i)++] = ESCAPED_FLAG;
+    } else if (to_stuff == ESCAPE) {
+        stuffed[(*stuffed_i)++] = ESCAPE;
+        stuffed[(*stuffed_i)++] = ESCAPED_ESCAPE;
+    } else {
+        stuffed[(*stuffed_i)++] = to_stuff;
     }
-    return -1;
+}
+
+int stuff_buffer(char *stuffed, char *buffer, int length) {
+    stuffed = (char*) malloc((length * 2 + 2) * sizeof(char));
+    int stuffed_i = 0;
+    char bcc2 = 0;
+    for (int i = 0; i < length; ++i) {
+        bcc2 ^= buffer[i];
+        stuff_char(stuffed, &stuffed_i, buffer[i]);
+    }
+    stuff_char(stuffed, &stuffed_i, bcc2);
+
+    return stuffed_i;
 }
 
 int set_serial_port(LinkLayer *layer) {
@@ -163,7 +164,7 @@ int set_serial_port(LinkLayer *layer) {
     while (ntries) {
         write(layer->fd, frame, CONTROL_FRAME_SIZE);
         // print_frame(frame);
-        if (read_control_frame_timeout(layer, A_EMISSOR, C_UA) == 0)
+        if (read_frame_timeout(layer, A_RECEPTOR_RESPONSE, C_UA) == 0)
             return 0;
         ntries--;
     }
@@ -173,7 +174,7 @@ int set_serial_port(LinkLayer *layer) {
 
 int ack_serial_port(LinkLayer *layer) {
     
-    if (read_control_frame(layer, C_SET, A_EMISSOR) != 0) {
+    if (read_frame(layer, C_SET, A_EMISSOR) != 0) {
         printf("ack_serial_port: Failed to read control frame\n");
     }
     else {
@@ -184,6 +185,18 @@ int ack_serial_port(LinkLayer *layer) {
             return -1;
 
         return 0;
+    }
+
+    return -1;
+}
+
+int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
+    int ntries = layer->numTransmissions;
+    while (ntries) {
+        write(layer->fd, buffer, length);
+        if (read_frame_timeout(layer, A_EMISSOR, C_UA) == 0)
+            return 0;
+        ntries--;
     }
 
     return -1;
