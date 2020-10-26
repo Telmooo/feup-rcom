@@ -52,10 +52,11 @@ int llopen(int port, device_type type) {
 }
 
 int llwrite(int fd, char *buffer, int length) {
-    printf("Seq (start) %d\n", link_layer.sequenceNumber);
-
     char *stuffed = NULL;
     int stuffed_length = stuff_frame(&stuffed, buffer, length, link_layer.sequenceNumber);
+    if (stuffed_length == -1) {
+        return -1;
+    }
 
     int ret = send_info_serial_port(&link_layer, stuffed, stuffed_length);
     if (ret != -1) {
@@ -73,8 +74,21 @@ int llread(int fd, char **buffer) {
     link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
 
     // Allocate & Copy data to buffer
-    state_machine_copy_data(link_layer.state_machine, buffer);
+    if (state_machine_copy_data(link_layer.state_machine, buffer))
+        return -1;
     return state_machine_get_data_size(link_layer.state_machine);
+}
+
+int llread_to_file(int fd, int file_dest_fd) {
+    // Read data
+    if (read_info_frame(&link_layer)) {
+        return -1;
+    }
+
+    link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
+
+    // Allocate & Copy data to buffer
+    return state_machine_write_data_to_file(link_layer.state_machine, file_dest_fd);
 }
 
 int llclose(int fd) {

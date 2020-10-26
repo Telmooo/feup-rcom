@@ -146,7 +146,7 @@ int stuff_frame(char **stuffed, char *buffer, int length, int sequence_number) {
     *stuffed = (char*) malloc((5 + length * 2 + 2) * sizeof(char));
     if (*stuffed == NULL) {
         printf("Failed to allocate stuffed frame\n");
-        return 1;
+        return -1;
     }
 
     (*stuffed)[0] = FLAG;
@@ -187,7 +187,7 @@ int set_serial_port(LinkLayer *layer) {
         }
     }
 
-    return 1;
+    return -1;
 }
 
 int ack_serial_port(LinkLayer *layer) {
@@ -213,11 +213,12 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
     bool send = true;
     int ntries = layer->numTransmissions;
     while (ntries) {
-        if (send)
+        if (send) {
             written = write(layer->fd, buffer, length);
+            set_alarm(layer->timeout);
+        }
         send = true;
 
-        set_alarm(layer->timeout);
         ret = read_frame(layer, A_EMISSOR, READ_FRAME_IGNORE_CHECK);
         // TODO: Refactor to get the cancel_alarm() calls better organized
         if (ret == READ_FRAME_WAS_INTERRUPTED) {

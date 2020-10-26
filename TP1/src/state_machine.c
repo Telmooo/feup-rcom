@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <unistd.h>
 
 #include "macros.h"
 
@@ -44,13 +45,18 @@ void free_state_machine(frame_t *this) {
     free(this);
 }
 
-void state_machine_copy_data(frame_t *this, char **dest) {
+int state_machine_copy_data(frame_t *this, char **dest) {
     *dest = (char*) malloc(state_machine_get_data_size(this) * sizeof(char));
     if (*dest == NULL) {
         printf("state_machine_copy_data: Failed to allocate memory for dest\n");
-        return;
+        return -1;
     }
     memcpy(*dest, this->data, state_machine_get_data_size(this) * sizeof(char));
+    return 0;
+}
+
+int state_machine_write_data_to_file(frame_t *this, int file_fd) {
+    return write(file_fd, this->data, state_machine_get_data_size(this));
 }
 
 void state_machine_restart(frame_t *this) {
@@ -92,10 +98,6 @@ int state_machine_process_char(frame_t *this, char c) {
         printf("FLAG_RCV %x\n", c);
         #endif
         if (c == A_EMISSOR || c == A_RECEPTOR) {
-            // if (c == this->device_type) {
-            //     this->state = STATE_START;
-            //     return 1;
-            // }
             this->address = c;
             this->state = STATE_A_RCV;
         }

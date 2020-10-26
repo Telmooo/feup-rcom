@@ -17,6 +17,7 @@ int set_alarm(unsigned int seconds) {
 }
 
 int cancel_alarm() {
+    alarm_was_called = 0;
     return alarm(0);
 }
 
