@@ -3,14 +3,13 @@
 TARGET = app
 
 CC = gcc
-CFLAGS = -Wall #-Werror
+CFLAGS = -g -Wall #-Werror
 
 SRCDIR = ./src
 ODIR = ./obj
 IDIR = ./include
 
 IFLAGS = -I $(IDIR)
-
 
 SRCS = main.c link_layer.c serial_port.c signal_handling.c state_machine.c
 

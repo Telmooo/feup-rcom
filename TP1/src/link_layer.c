@@ -59,6 +59,8 @@ int llwrite(int fd, char *buffer, int length) {
     }
 
     int ret = send_info_serial_port(&link_layer, stuffed, stuffed_length);
+    free(stuffed);
+    
     if (ret != -1) {
         link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
     }

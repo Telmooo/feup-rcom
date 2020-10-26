@@ -46,17 +46,21 @@ void free_state_machine(frame_t *this) {
     free(this);
 }
 
-static inline expand_data_if_needed(frame_t *this) {
+static inline void expand_data_if_needed(frame_t *this) {
     if (this->dataIndex >= this->maxDataSize) {
         this->maxDataSize *= 2;
-        realloc(this->data, this->maxDataSize);
+        this->data = (char*) realloc(this->data, this->maxDataSize);
+        if (this->data == NULL) {
+            printf("Welp, couldn't realloc for a data buffer of size %d.", this->maxDataSize);
+            exit(1);
+        }
     }
 }
 
 int state_machine_copy_data(frame_t *this, char **dest) {
     *dest = (char*) malloc(state_machine_get_data_size(this) * sizeof(char));
     if (*dest == NULL) {
-        printf("state_machine_copy_data: Failed to allocate memory for dest\n");
+        printf("state_machine_copy_data: Failed to allocate memory for dest (size = %d elements)\n", state_machine_get_data_size(this));
         return -1;
     }
     memcpy(*dest, this->data, state_machine_get_data_size(this) * sizeof(char));
@@ -88,7 +92,7 @@ inline char state_machine_get_address(frame_t *this) {
     return this->address;
 }
 
-inline char state_machine_get_data_size(frame_t *this) {
+inline int state_machine_get_data_size(frame_t *this) {
     return this->dataSize;
 }
 
@@ -147,7 +151,6 @@ int state_machine_process_char(frame_t *this, char c) {
             if (is_control_frame(this->control)) {
                 this->state = STATE_START;
                 this->hasData = false;
-                this->dataSize = 0;
                 return 0;
             }
             this->state = STATE_START;
@@ -198,7 +201,6 @@ int state_machine_process_char(frame_t *this, char c) {
 
                 this->successful = (bcc2 == this->data[this->dataIndex - 1]);
                 this->dataSize = this->dataIndex - 1;
-
                 this->state = STATE_START;
                 return 0;
             }

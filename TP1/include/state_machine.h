@@ -12,7 +12,7 @@ bool state_machine_is_data(frame_t *this);
 bool state_machine_is_data_valid(frame_t *this);
 char state_machine_get_control(frame_t *this);
 char state_machine_get_address(frame_t *this);
-char state_machine_get_data_size(frame_t *this);
+int state_machine_get_data_size(frame_t *this);
 int state_machine_copy_data(frame_t *this, char **dest);
 int state_machine_write_data_to_file(frame_t *this, int file_fd);
 void state_machine_restart(frame_t *this);
