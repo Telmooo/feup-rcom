@@ -28,6 +28,6 @@ struct _frame {
     device_type dev_type;
     char address, control, device_type;
     bool escaped, hasData, successful;
-    int dataIndex, dataSize;
+    int dataIndex, dataSize, maxDataSize;
     char* data;
 };

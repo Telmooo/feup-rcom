@@ -36,6 +36,7 @@ frame_t* new_state_machine(device_type dev_type) {
     this->hasData = false;
     this->dataIndex = 0;
     this->dataSize = 0;
+    this->maxDataSize = DATA_DEFAULT_SIZE;
     this->device_type = dev_type;
     return this;
 }
@@ -43,6 +44,13 @@ frame_t* new_state_machine(device_type dev_type) {
 void free_state_machine(frame_t *this) {
     free(this->data);
     free(this);
+}
+
+static inline expand_data_if_needed(frame_t *this) {
+    if (this->dataIndex >= this->maxDataSize) {
+        this->maxDataSize *= 2;
+        realloc(this->data, this->maxDataSize);
+    }
 }
 
 int state_machine_copy_data(frame_t *this, char **dest) {
@@ -163,9 +171,11 @@ int state_machine_process_char(frame_t *this, char c) {
         #endif
         if (this->escaped) {
             if (c == ESCAPED_ESCAPE) {
+                expand_data_if_needed(this);
                 this->data[this->dataIndex++] = ESCAPE;
                 this->escaped = false;
             } else if (c == ESCAPED_FLAG) {
+                expand_data_if_needed(this);
                 this->data[this->dataIndex++] = FLAG;
                 this->escaped = false;               
             } else if (c == FLAG) {
@@ -194,6 +204,7 @@ int state_machine_process_char(frame_t *this, char c) {
             }
             else {
                 // Regular data
+                expand_data_if_needed(this);
                 this->data[this->dataIndex++] = c;
             }
         }
