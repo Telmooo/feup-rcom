@@ -33,19 +33,19 @@
 #define BIT(N) (0x01 << N)
 
 // 0 S 0 0 0 0 0 0
-// Is either 1 or 0
-#define C_INFORMATION(N) (N << 7) 
+// N s either 1 or 0
+#define C_INFORMATION(N) (N << 6) 
 
 // R 0 0 0 0 1 0 1
-// Is either 1 or 0
-#define RR(N) (0x05 | (N << 8))
+// N is either 1 or 0
+#define C_RR(N) ((char)(0x05 | (N << 7)))
 
 // R 0 0 0 0 0 0 1
-// Is either 1 or 0
-#define REJ(N) (0x01 | (N << 8))
+// N is either 1 or 0
+#define C_REJ(N) ((char)(0x01 | (N << 7)))
 
 // Used on our custom funtions (doesn't collide with anything else)
-#define READ_FRAME_IGNORE_CHECK 0xFF
+#define READ_FRAME_IGNORE_CHECK ((char)0xFF)
 
 #define CONTROL_FRAME_SIZE 5
 

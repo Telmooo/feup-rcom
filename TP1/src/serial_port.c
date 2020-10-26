@@ -95,7 +95,6 @@ static int read_frame_base(LinkLayer *layer, char address, char control, ssize_t
     int ret;
     while (done) {
         ret = read_func(layer->fd, &c, 1, layer);
-
         if (ret == -1) {
             if (errno != EINTR) {
                 perror("read_control_frame read");
@@ -210,18 +209,18 @@ int ack_serial_port(LinkLayer *layer) {
 }
 
 int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
-    int ret;
+    int written, ret;
     bool send = true;
     int ntries = layer->numTransmissions;
     while (ntries) {
         if (send)
-            ret = write(layer->fd, buffer, length);
+            written = write(layer->fd, buffer, length);
         send = true;
         if ((ret = read_frame_timeout(layer, A_EMISSOR, READ_FRAME_IGNORE_CHECK)) != -1) {
-            if (state_machine_get_control(layer->state_machine) == RR(reverse_sequence_number(layer->sequenceNumber))) {
-                return 0;
+            if (state_machine_get_control(layer->state_machine) == C_RR(reverse_sequence_number(layer->sequenceNumber))) {
+                return written;
             }
-            if (state_machine_get_control(layer->state_machine) != REJ(reverse_sequence_number(layer->sequenceNumber))) {
+            if (state_machine_get_control(layer->state_machine) != C_REJ(reverse_sequence_number(layer->sequenceNumber))) {
                 send = false;
             }
             // We don't want to decrease the num of tries, we only decrease in timeouts
@@ -235,10 +234,19 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
 
 int read_info_frame(LinkLayer *layer) {
     int ret;
+    char ack[CONTROL_FRAME_SIZE];
     while (true) {
         if ((ret = read_frame(layer, A_EMISSOR, C_INFORMATION(reverse_sequence_number(layer->sequenceNumber)))) != -1) {
-            if (state_machine_is_data_valid(layer->state_machine))
+            if (state_machine_is_data_valid(layer->state_machine)) {
+                // Send RR
+                create_control_frame(ack, A_RECEPTOR_RESPONSE, C_RR(layer->sequenceNumber));
+                write(layer->fd, ack, CONTROL_FRAME_SIZE);
                 return 0;
+            }
+
+            // Send REJ
+            create_control_frame(ack, A_RECEPTOR_RESPONSE, C_REJ(layer->sequenceNumber));
+            write(layer->fd, ack, CONTROL_FRAME_SIZE);
         }
     }
 }

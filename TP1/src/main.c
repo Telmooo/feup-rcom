@@ -30,10 +30,9 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < 8; ++i) {
         if (t == TRANSMITTER) {
             int ret = llwrite(fd, "NieR: Automata ~ Original Soundtrack", 36);
-            // int ret = llwrite(fd, "ab", 2);
             printf("Written %d chars\n", ret);
         }
         else {

@@ -51,6 +51,8 @@ int llopen(int port, device_type type) {
 }
 
 int llwrite(int fd, char *buffer, int length) {
+    printf("Seq (start) %d\n", link_layer.sequenceNumber);
+
     char *stuffed = NULL;
     int stuffed_length = stuff_frame(&stuffed, buffer, length, link_layer.sequenceNumber);
 
@@ -66,6 +68,8 @@ int llread(int fd, char **buffer) {
     if (read_info_frame(&link_layer)) {
         return -1;
     }
+
+    link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
 
     // Allocate & Copy data to buffer
     state_machine_copy_data(link_layer.state_machine, buffer);

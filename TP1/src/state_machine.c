@@ -6,14 +6,16 @@
 
 #include "macros.h"
 
+// TODO: REALLOCS
+
 static inline int is_control_frame(char control) {
     return  control == C_SET ||
             control == C_DISC ||
             control == C_UA ||
-            control == RR(0) ||
-            control == RR(1) ||
-            control == REJ(0) ||
-            control == REJ(1);
+            control == C_RR(0) ||
+            control == C_RR(1) ||
+            control == C_REJ(0) ||
+            control == C_REJ(1);
 }
 
 static inline int is_info_frame(char control) {
@@ -43,7 +45,6 @@ void free_state_machine(frame_t *this) {
 }
 
 void state_machine_copy_data(frame_t *this, char **dest) {
-    printf("%d\n", state_machine_get_data_size(this));
     *dest = (char*) malloc(state_machine_get_data_size(this) * sizeof(char));
     if (*dest == NULL) {
         printf("state_machine_copy_data: Failed to allocate memory for dest\n");
