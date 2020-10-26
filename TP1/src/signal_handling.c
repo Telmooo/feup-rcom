@@ -3,8 +3,22 @@
 #include <signal.h>
 #include <stddef.h>
 #include <stdio.h>
+#include <unistd.h>
 
-void alarm_handler (int signum) {}
+int alarm_was_called = 0;
+
+void alarm_handler (int signum) {
+    alarm_was_called = 1;
+}
+
+int set_alarm(unsigned int seconds) {
+    alarm_was_called = 0;
+    return alarm(seconds);
+}
+
+int cancel_alarm() {
+    return alarm(0);
+}
 
 int set_signal_handlers() {
 

@@ -14,6 +14,7 @@ int llopen(int port, device_type type) {
     link_layer.baudRate = BAUDRATE;
     link_layer.timeout = LL_TIMEOUT;
     link_layer.numTransmissions = LL_RETRIES;
+    link_layer.type = type;
 
     if (type != TRANSMITTER && type != RECEIVER) {
         printf("llopen device type can only be either TRANSMITTER or RECEIVER\n");
@@ -77,8 +78,16 @@ int llread(int fd, char **buffer) {
 }
 
 int llclose(int fd) {
-    // TODO: DISC
-    int ret = close_serial_port(&link_layer);
-    free_state_machine(link_layer.state_machine);
+    int ret;
+    if (link_layer.type == TRANSMITTER) {
+        ret = serial_port_transmitter_disc(&link_layer);
+    } else {
+        ret = serial_port_receiver_disc(&link_layer);
+    }
+
+    if (ret != -1) {
+        ret = close_serial_port(&link_layer);
+        free_state_machine(link_layer.state_machine);
+    }
     return ret;
 }

@@ -4,6 +4,10 @@
 // #define DEBUG_STATE_MACHINE
 // #endif
 
+#ifndef DEBUG_MESSAGES
+#define DEBUG_MESSAGES
+#endif
+
 #define BAUDRATE 0xB38400
 // #define MODEMDEVICE "/dev/ttyS1"
 // #define _POSIX_SOURCE 1 /* POSIX compliant source */
@@ -49,6 +53,9 @@
 
 #define CONTROL_FRAME_SIZE 5
 
+#define READ_FRAME_OK 0
+#define READ_FRAME_ERROR -1
+#define READ_FRAME_WAS_INTERRUPTED -2
 
 #define ESCAPE 0x7d
 #define ESCAPED_FLAG 0x5e

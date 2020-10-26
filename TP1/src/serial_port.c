@@ -2,6 +2,7 @@
 
 #include "macros.h"
 #include "state_machine.h"
+#include "signal_handling.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -89,52 +90,44 @@ void create_control_frame(char* frame, char A, char C) {
     frame[4] = FLAG;
 }
 
-static int read_frame_base(LinkLayer *layer, char address, char control, ssize_t (*read_func)(int, void *, size_t, LinkLayer*)) {
+static int read_frame(LinkLayer *layer, char address, char control) {
     char c;
     bool done = 1;
     int ret;
     while (done) {
-        ret = read_func(layer->fd, &c, 1, layer);
+        if (alarm_was_called) {
+            return READ_FRAME_WAS_INTERRUPTED;
+        }
+        ret = read(layer->fd, &c, 1);
         if (ret == -1) {
-            if (errno != EINTR) {
-                perror("read_control_frame read");
+            if (errno == EINTR) {
+                return READ_FRAME_WAS_INTERRUPTED;
+            } else {
+                perror("read_control_frame_base read");
+                return READ_FRAME_ERROR;
             }
-            return -1;
         } else if (ret == 1) {
-            done = state_machine_process_char(layer->state_machine, c);
+            if (state_machine_process_char(layer->state_machine, c) == 0) {
+                if (address != READ_FRAME_IGNORE_CHECK && layer->state_machine->address != address) {
+                    #ifdef DEBUG_MESSAGES
+                    printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
+                    #endif
+                    continue;
+                }
+
+                if (control != READ_FRAME_IGNORE_CHECK && layer->state_machine->control != control) {
+                    #ifdef DEBUG_MESSAGES
+                    printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
+                    #endif
+                    continue;
+                }
+
+                return READ_FRAME_OK;
+            }
         }
     }
 
-    if (address != READ_FRAME_IGNORE_CHECK && layer->state_machine->address != address) {
-        printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
-        return -1;
-    }
-
-    if (control != READ_FRAME_IGNORE_CHECK && layer->state_machine->control != control) {
-        printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
-        return -1;
-    }
-
-    return ret;
-}
-
-static inline ssize_t read_wrapper(int fd, void* buf, size_t length, LinkLayer *layer) {
-    return read(fd, buf, length);
-}
-
-int read_frame(LinkLayer *layer, char address, char control) {
-    return read_frame_base(layer, address, control, read_wrapper);
-}
-
-static inline ssize_t timeout_read(int fd, void* buf, size_t length, LinkLayer *layer) {
-    alarm(layer->timeout);
-    int ret = read(fd, buf, length);
-    alarm(0);
-    return ret;
-}
-
-int read_frame_timeout(LinkLayer *layer, char address, char control) {
-    return read_frame_base(layer, address, control, timeout_read);
+    return READ_FRAME_ERROR;
 }
 
 static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
@@ -178,13 +171,20 @@ int set_serial_port(LinkLayer *layer) {
     char frame[CONTROL_FRAME_SIZE];
     create_control_frame(frame, A_EMISSOR, C_SET);
 
-    int ntries = layer->numTransmissions;
+    int ret, ntries = layer->numTransmissions;
     while (ntries) {
         write(layer->fd, frame, CONTROL_FRAME_SIZE);
         // print_frame(frame);
-        if (read_frame_timeout(layer, A_RECEPTOR_RESPONSE, C_UA) != -1)
+        set_alarm(layer->timeout);
+        ret = read_frame(layer, A_RECEPTOR_RESPONSE, C_UA);
+        cancel_alarm();
+        if (ret == READ_FRAME_WAS_INTERRUPTED) {
+            ntries--;
+        } else if (ret == READ_FRAME_ERROR) {
+            return -1;
+        } else {
             return 0;
-        ntries--;
+        }
     }
 
     return 1;
@@ -192,7 +192,7 @@ int set_serial_port(LinkLayer *layer) {
 
 int ack_serial_port(LinkLayer *layer) {
     
-    if (read_frame(layer, C_SET, A_EMISSOR) == -1) {
+    if (read_frame(layer, C_SET, A_EMISSOR) != READ_FRAME_OK) {
         printf("ack_serial_port: Failed to read control frame\n");
     }
     else {
@@ -216,17 +216,29 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
         if (send)
             written = write(layer->fd, buffer, length);
         send = true;
-        if ((ret = read_frame_timeout(layer, A_EMISSOR, READ_FRAME_IGNORE_CHECK)) != -1) {
+
+        set_alarm(layer->timeout);
+        ret = read_frame(layer, A_EMISSOR, READ_FRAME_IGNORE_CHECK);
+        // TODO: Refactor to get the cancel_alarm() calls better organized
+        if (ret == READ_FRAME_WAS_INTERRUPTED) {
+            ntries--;
+        }
+        else if (ret == READ_FRAME_ERROR) {
+            cancel_alarm();
+            return -1;
+        }
+        else {
             if (state_machine_get_control(layer->state_machine) == C_RR(reverse_sequence_number(layer->sequenceNumber))) {
+                cancel_alarm();
                 return written;
             }
-            if (state_machine_get_control(layer->state_machine) != C_REJ(reverse_sequence_number(layer->sequenceNumber))) {
+            else if (state_machine_get_control(layer->state_machine) == C_REJ(reverse_sequence_number(layer->sequenceNumber))) {
+                send = true;
+            }
+            else {
                 send = false;
             }
-            // We don't want to decrease the num of tries, we only decrease in timeouts
-            ntries++;
         }
-        ntries--;
     }
 
     return -1;
@@ -236,7 +248,8 @@ int read_info_frame(LinkLayer *layer) {
     int ret;
     char ack[CONTROL_FRAME_SIZE];
     while (true) {
-        if ((ret = read_frame(layer, A_EMISSOR, C_INFORMATION(reverse_sequence_number(layer->sequenceNumber)))) != -1) {
+        ret = read_frame(layer, A_EMISSOR, C_INFORMATION(reverse_sequence_number(layer->sequenceNumber)));
+        if (ret == READ_FRAME_OK) {
             if (state_machine_is_data_valid(layer->state_machine)) {
                 // Send RR
                 create_control_frame(ack, A_RECEPTOR_RESPONSE, C_RR(layer->sequenceNumber));
@@ -247,6 +260,64 @@ int read_info_frame(LinkLayer *layer) {
             // Send REJ
             create_control_frame(ack, A_RECEPTOR_RESPONSE, C_REJ(layer->sequenceNumber));
             write(layer->fd, ack, CONTROL_FRAME_SIZE);
+
+            // TODO: (?) We don't send an RR when we receive a "duplicate" I frame
         }
     }
+}
+
+int serial_port_transmitter_disc(LinkLayer *layer) {
+    char frame[CONTROL_FRAME_SIZE];
+    create_control_frame(frame, A_EMISSOR, C_DISC);
+
+    int ret, ntries = layer->numTransmissions;
+    while (ntries) {
+        write(layer->fd, frame, CONTROL_FRAME_SIZE);
+        // print_frame(frame);
+        set_alarm(layer->timeout);
+        ret = read_frame(layer, A_RECEPTOR, C_DISC);
+        cancel_alarm();
+        if (ret == READ_FRAME_WAS_INTERRUPTED) {
+            ntries--;
+        } else if (ret == READ_FRAME_ERROR) {
+            return -1;
+        } else {
+            create_control_frame(frame, A_EMISSOR_RESPONSE, C_UA);
+            if (write(layer->fd, frame, CONTROL_FRAME_SIZE) == -1) {
+                return -1;
+            }
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
+
+int serial_port_receiver_disc(LinkLayer *layer) {
+    char frame[CONTROL_FRAME_SIZE];
+    create_control_frame(frame, A_RECEPTOR, C_DISC);
+
+    int ret = read_frame(layer, A_EMISSOR, C_DISC);
+    if (ret != READ_FRAME_OK) {
+        return -1;
+    }
+
+    int ntries = layer->numTransmissions;
+    while (ntries) {
+        write(layer->fd, frame, CONTROL_FRAME_SIZE);
+        // print_frame(frame);
+        set_alarm(layer->timeout);
+        ret = read_frame(layer, A_EMISSOR_RESPONSE, C_UA);
+        cancel_alarm();
+        if (ret == READ_FRAME_WAS_INTERRUPTED) {
+            ntries--;
+        } else if (ret == READ_FRAME_ERROR) {
+            return -1;
+        } else {
+            return 0;
+        }
+    }
+
+    return -1;
 }

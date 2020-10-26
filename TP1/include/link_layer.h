@@ -1,6 +1,7 @@
 #pragma once
 
 #include "macros.h"
+#include "enums.h"
 #include "state_machine.h"
 
 typedef struct linkLayer LinkLayer;
@@ -12,6 +13,7 @@ struct linkLayer {
     int sequenceNumber; /*Número de sequência da trama: 0, 1*/
     int timeout; /*Valor do temporizador: 1 s*/
     int numTransmissions; /*Número de tentativas em caso de falha*/
+    device_type type;
     frame_t* state_machine;
 };
 
