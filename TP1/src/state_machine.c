@@ -202,6 +202,9 @@ int state_machine_process_char(frame_t *this, char c) {
                 this->successful = (bcc2 == this->data[this->dataIndex - 1]);
                 this->dataSize = this->dataIndex - 1;
                 this->state = STATE_START;
+                #ifdef DEBUG_MESSAGES
+                printf("\n");
+                #endif
                 return 0;
             }
             else {

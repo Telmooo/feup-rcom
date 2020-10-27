@@ -12,17 +12,18 @@
 
 static int get_file_size(int fd) {
     struct stat st;
-    fstat(fd, &st);
+    if (fstat(fd, &st) == -1) {
+        fprintf(stderr, "%s: failed to get file status\n", __func__);
+        return -1;
+    }
     return st.st_size;
 }
 
 static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ctrl_info, app_ctrl_packet_t *out_packet) {
-    // int file_name_size = strlen(ctrl_info->file_name);
-
-    out_packet = (app_ctrl_packet_t*)malloc(sizeof(app_ctrl_packet_t));
+    //out_packet = (app_ctrl_packet_t*)malloc(sizeof(app_ctrl_packet_t));
 
     if (out_packet == NULL) {
-        perror("malloc failed at creating app_ctrl_packet_t");
+        fprintf(stderr, "%s: null destination for out_packet\n", __func__);
         return -1;
     }
 
@@ -32,7 +33,7 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
     out_packet->tlv_packets = (app_tlv_packet_t*)malloc(sizeof(app_tlv_packet_t) * out_packet->tlv_packet_count);
 
     if (out_packet->tlv_packets == NULL) {
-        perror("malloc failed at creating app_tlv_packet_t");
+        fprintf(stderr, "%s: failed to allocate memory for value array from tlv_packets in app_ctrl_packet_t\n", __func__);
         return -1;
     }
 
@@ -43,18 +44,18 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
     out_packet->tlv_packets[0].length = sizeof(long);
     out_packet->tlv_packets[0].value = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->tlv_packets[0].length);
     if (out_packet->tlv_packets[0].value == NULL) {
-        perror("malloc failed at creating file size value array for app_tlv_packet_t");
+        fprintf(stderr, "%s: failed to allocate memory for value arry from app_ctrl_packet_t\n", __func__);
         return -1;
     }
 
-    *out_packet->tlv_packets[0].value = ctrl_info->file_size;
+    memcpy((void*)out_packet->tlv_packets[0].value, (void*)&ctrl_info->file_size, sizeof(uint8_t) * out_packet->tlv_packets[0].length);
 
     // File Name
     out_packet->tlv_packets[1].type = TLV_TYPE_FILE_NAME;
     out_packet->tlv_packets[1].length = strlen(ctrl_info->file_name);
     out_packet->tlv_packets[1].value = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->tlv_packets[1].length);
     if (out_packet->tlv_packets[1].value == NULL) {
-        perror("malloc failed at creating file name value array for app_tlv_packet_t");
+        fprintf(stderr, "%s: failed to allocate memory for value array from tlv_packets in app_ctrl_packet_t\n", __func__);
         return -1;
     }
 
@@ -69,10 +70,10 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
 
 static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t length, app_data_packet_t *out_packet) {
 
-    out_packet = (app_data_packet_t*)malloc(sizeof(app_data_packet_t));
+    //out_packet = (app_data_packet_t*)malloc(sizeof(app_data_packet_t));
 
     if (out_packet == NULL) {
-        perror("malloc failed to create app_data_packet_t");
+        fprintf(stderr, "%s: null destination for out_packet\n", __func__);
         return -1;
     }
 
@@ -82,7 +83,7 @@ static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t len
     out_packet->packet_data = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->length);
 
     if (out_packet->packet_data == NULL) {
-        perror("malloc failed to allocate data array for app_data_packet_t");
+        fprintf(stderr, "%s: failed to allocate memory for data array from app_data_packet_t\n", __func__);
         return -1;
     }
 
@@ -101,6 +102,11 @@ static int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
 
     char *buffer = (char*)malloc(sizeof(char) * packet_size);
 
+    if (buffer == NULL) {
+        fprintf(stderr, "%s: failed to allocate memory for buffer to write\n", __func__);
+        return -1;
+    }
+
     int index = 0;
     buffer[index++] = packet->ctrl_field; // Control Field
     for (int i = 0; i < packet->tlv_packet_count; i++) {
@@ -114,8 +120,8 @@ static int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
         }
     }
 
-    if (llwrite(fd, buffer, packet_size) != packet_size) {
-        fprintf(stderr, "llwrite failed to write full length of the control packet\n");
+    if (llwrite(fd, buffer, packet_size) == -1) { // TODO: fix llwrite return
+        fprintf(stderr, "%s: failed to write the control packet\n", __func__);
         free(buffer);
         return -1;
     }
@@ -131,16 +137,21 @@ static int app_send_data_packet(int fd, app_data_packet_t *packet) {
 
     char *buffer = (char*)malloc(sizeof(char) * packet_size);
 
+    if (buffer == NULL) {
+        fprintf(stderr, "%s: failed to allocate memory for buffer to write\n", __func__);
+        return -1;
+    }
+
     int index = 0;
 
     buffer[index++] = packet->ctrl_field; // Control Field
     buffer[index++] = packet->seq_no; // Sequence Number
     buffer[index] = packet->length; index += 2; // Length (2 bytes)
     
-    memcpy((void*)&buffer[index], packet->packet_data, packet->length);
+    memcpy((void*)&buffer[index], (void*)packet->packet_data, packet->length);
 
-    if (llwrite(fd, buffer, packet_size) != packet_size) {
-        fprintf(stderr, "llwrite failed to write full length of the data packet\n");
+    if (llwrite(fd, buffer, packet_size) == -1) { // TODO: fix llwrite return
+        fprintf(stderr, "%s: failed to write the data packet\n", __func__);
         free(buffer);
         return -1;
     }
@@ -153,21 +164,21 @@ static int app_send_data_packet(int fd, app_data_packet_t *packet) {
 static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_type, app_ctrl_info_t *out_info) {
 
     if (size < 1) {
-        fprintf(stderr, "invalid control packet - empty packet\n");
+        fprintf(stderr, "%s: invalid control packet received - empty control packet\n", __func__);
         return -1;
     }
 
-    out_info = (app_ctrl_info_t*)malloc(sizeof(app_ctrl_info_t));
+    //out_info = (app_ctrl_info_t*)malloc(sizeof(app_ctrl_info_t));
 
     if (out_info == NULL) {
-        fprintf(stderr, "malloc failed to allocate space for file information\n");
+        fprintf(stderr, "%s: null destination for out_info\n", __func__);
         return -1;
     }
 
     app_ctrl_type_t ctrl_type_read = (uint8_t)buffer[0];
 
     if (ctrl_type_read != ctrl_type) {
-        fprintf(stderr, "invalid control packet - expected control field with value %d got %d\n", ctrl_type, ctrl_type_read);
+        fprintf(stderr, "%s: invalid control packet received - expected control field with value %d, got %d\n", __func__, ctrl_type, ctrl_type_read);
         return -1;
     }
 
@@ -179,28 +190,33 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
         uint8_t type = (uint8_t)buffer[i++];
 
         if (i >= size) {
-            fprintf(stderr, "invalid control packet - invalid TLV packet, missing length\n");
+            fprintf(stderr, "%s: invalid control packet received - TLV packet is missing length octet\n", __func__);
             return -1;
         }
         uint8_t length = (uint8_t)buffer[i++];
 
         if (i + length > size) {
-            fprintf(stderr, "invalid control packet - invalid TLV packet, missing value\n");
+            fprintf(stderr, "%s: invalid control packet received - TLV packet is value(s) octet(s)\n", __func__);
             return -1;
         }
 
         switch(type) {
             case TLV_TYPE_FILE_SIZE:
-                memcpy(&out_info->file_size, (void*)&buffer[i], length);
+                memcpy((void*)&out_info->file_size, (void*)&buffer[i], length);
                 break;
             case TLV_TYPE_FILE_NAME:
             {
                 out_info->file_name = (char*)malloc(sizeof(char) * length);
-                memcpy(out_info->file_name, (void*)&buffer[i], length);
+                if (out_info->file_name == NULL) {
+                    fprintf(stderr, "%s: failed to allocate memory for file_name from app_ctrl_info_t\n", __func__);
+                    return -1;
+                }
+
+                memcpy((void*)out_info->file_name, (void*)&buffer[i], length);
                 break;
             }
             default:
-                fprintf(stderr, "invalid control packet - invalid TLV packet, invalid TLV type\n");
+                fprintf(stderr, "%s: invalid control packet - unknown TLV packet type received\n", __func__);
                 return -1;
         }
 
@@ -210,29 +226,31 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
     }
 
     if (tlv_packets_parsed != CTRL_INFO_TLV_COUNT) {
-        fprintf(stderr, "invalid control packet - missing information\n");
+        fprintf(stderr, "%s: invalid control packet - information is missing\n", __func__);
         return -1;
     }
 
     return 0;
 }
 
-static int app_parse_data_packet(char *buffer, int size, int sequence_number, char *write_data, int *write_length) {
+static int app_parse_data_packet(char *buffer, int size, int sequence_number, char **parsed_data, int *data_length) {
     
     if (size < 4) {
+        fprintf(stderr, "%s: invalid data packet received - missing header information(s)\n", __func__);
         return -1;
     }
 
     app_ctrl_type_t ctrl_type_read = (uint8_t)buffer[0];
 
     if (ctrl_type_read != DATA) {
-        fprintf(stderr, "invalid data packet - expected control field with value %d got %d\n", DATA, ctrl_type_read);
+        fprintf(stderr, "%s: invalid data packet received - expected control field with value %d, got %d\n", __func__, DATA, ctrl_type_read);
         return -1;
     }
 
-    uint8_t seq_no = (uint8_t)buffer[1];
+    uint8_t seq_no_read = (uint8_t)buffer[1];
 
-    if (seq_no != sequence_number) {
+    if (seq_no_read != sequence_number) {
+        fprintf(stderr, "%s: invalid data packet received - mismatch on sequence number, expected %d got %d\n", __func__, sequence_number, seq_no_read);
         return -1;
     }
 
@@ -240,16 +258,13 @@ static int app_parse_data_packet(char *buffer, int size, int sequence_number, ch
     memcpy(&length, &buffer[2], sizeof(uint16_t));
 
     if (length + 4 != size) {
+        fprintf(stderr, "%s: invalid data packet received - mismatch on data size, expected %d got %d\n", __func__, size - 4, length);
         return -1;
     }
 
-    write_data = (char*)malloc(sizeof(char) * length);
+    (*parsed_data) = &buffer[4];
 
-    *write_length = (int)length;
-
-    for (int i = 0; i < length; i++) {
-        write_data[i] = buffer[4 + i];
-    }
+    *data_length = (int)length;
 
     return 0;
 
@@ -272,24 +287,31 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     char *buffer;
 
-    app_ctrl_info_t *start_info = NULL;
-    app_ctrl_info_t *end_info = NULL;
+    app_ctrl_info_t start_info = {
+        .file_name = NULL,
+        .file_size = -1
+    };
+    app_ctrl_info_t end_info = {
+        .file_name = NULL,
+        .file_size = -1
+    };
 
     int bytes_read;
 
     // Start Packets
 
     if ((bytes_read = llread(fd, &buffer)) <= 0) {
-        fprintf(stderr, "llread failed at reading start packet\n");
+        fprintf(stderr, "%s: failed to read start packet\n", __func__);
         return -1;
     }
 
-    if (app_parse_ctrl_packet(buffer, bytes_read, START, start_info)) {
+    if (app_parse_ctrl_packet(buffer, bytes_read, START, &start_info)) {
+        fprintf(stderr, "%s: failed to parse start control info\n", __func__);
         return -1;
     }
 
-    if (start_info == NULL || start_info->file_name == NULL) {
-        fprintf(stderr, "invalid control info\n");
+    if (start_info.file_name == NULL) {
+        fprintf(stderr, "%s: invalid start control info - file name is undefined\n", __func__);
         return -1;
     }
 
@@ -301,7 +323,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     #else
     if ((dest_fd = open(start_info->file_name, O_WRONLY | O_CREAT, 0660)) == -1) {
     #endif
-        fprintf(stderr, "%s: failed to open destination file %s\n", __func__, start_info->file_name);
+        fprintf(stderr, "%s: failed to open destination file %s\n", __func__, start_info.file_name);
         return -1;
     }
 
@@ -312,7 +334,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     while (hasData) {
 
         if ((bytes_read = llread(fd, &buffer)) <= 0) {
-            fprintf(stderr, "%s: llread failed to read or reached the end without receveing end packet\n", __func__);
+            fprintf(stderr, "%s: failed to read or reached the end without receveing end packet\n", __func__);
             return -1;
         }
 
@@ -324,11 +346,13 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
         char *write_data = NULL;
         int size;
 
-        if (app_parse_data_packet(buffer, bytes_read, sequence_number, write_data, &size)) {
-            return -1;    
+        if (app_parse_data_packet(buffer, bytes_read, sequence_number, &write_data, &size)) {
+            fprintf(stderr, "%s: failed to parse data packet received\n", __func__);
+            return -1;
         }
 
         if (write(dest_fd, write_data, size) != size) {
+            fprintf(stderr, "%s: failed to write data packet received to destination file\n", __func__);
             return -1;
         }
 
@@ -337,42 +361,49 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     // End Packet
 
-    if (app_parse_ctrl_packet(buffer, bytes_read, END, end_info)) {
+    if (app_parse_ctrl_packet(buffer, bytes_read, END, &end_info)) {
+        fprintf(stderr, "%s: failed to parse end control info\n", __func__);
         return -1;
     }
 
-    if (end_info == NULL || end_info->file_name == NULL) {
-        fprintf(stderr, "invalid control info\n");
+    if (end_info.file_name == NULL) {
+        fprintf(stderr, "%s: invalid end control info - file name is undefined\n", __func__);
         return -1;
     }
 
-    if (!(app_match_ctrl_info(start_info, end_info))) {
+    if (!(app_match_ctrl_info(&start_info, &end_info))) {
+        fprintf(stderr, "%s: control info match failed - start and end packets are not equal\n", __func__);
         return -1;
     }
 
-    app_cpy_info_packet(file_info, start_info);
+    app_cpy_info_packet(file_info, &start_info);
 
-    free(start_info->file_name);
-    free(start_info);
-
-    free(end_info->file_name);
-    free(end_info);
+    free(start_info.file_name);
+    free(end_info.file_name);
     return 0;
 
 }
 
 int app_send_file(int fd, char *filename) {
+
+    if (filename == NULL) {
+        fprintf(stderr, "%s: invalid file name\n", __func__);
+        return -1;
+    }
     
     int file_fd = open(filename, O_RDONLY);
 
     if (file_fd == -1) {
-        char error_msg[256];
-        sprintf(error_msg, "couldn't open file %s", filename);
-        perror(error_msg);
+        fprintf(stderr, "%s: failed to open file to be transfered\n", __func__);
         return -1;
     }
 
     int file_size = get_file_size(fd);
+
+    if (file_size == -1) {
+        fprintf(stderr, "%s: failed to get file size\n", __func__);
+        return -1;
+    }
 
     // Start Packet
     app_ctrl_info_t ctrl_info = {
@@ -380,59 +411,81 @@ int app_send_file(int fd, char *filename) {
         .file_size = file_size
     };
 
-    app_ctrl_packet_t *start_packet = NULL;
+    app_ctrl_packet_t start_packet;
 
-    if (app_create_ctrl_packet(START, &ctrl_info, start_packet)) {
+    if (app_create_ctrl_packet(START, &ctrl_info, &start_packet)) {
+        fprintf(stderr, "%s: failed to create start control packet\n", __func__);
         return -1;
     }
 
-    if (app_send_ctrl_packet(fd, start_packet)) {
+    if (app_send_ctrl_packet(fd, &start_packet)) {
+        fprintf(stderr, "%s: failed to send start control packet\n", __func__);
         return -1;
     }
+
+    #ifdef DEBUG_MESSAGES
+    printf("%s: sent START control packket\n", __func__);
+    #endif
 
     // Data Packets
     uint8_t seq_no = 0;
     
     uint8_t data_buff[CHUNK_SIZE];
     int bytes_read;
-    while ((bytes_read = read(fd, data_buff, CHUNK_SIZE)) != 0) {
+    while ((bytes_read = read(file_fd, data_buff, CHUNK_SIZE)) != 0) {
         
         if (bytes_read == -1) {
-            fprintf(stderr, "read failed while reading from file to be transfered\n");
+            fprintf(stderr, "%s: failed to read data from file to be transfered\n", __func__);
             return -1;
         }
 
-        app_data_packet_t *data_packet = NULL;
+        app_data_packet_t data_packet;
 
-        if (app_create_data_packet(seq_no, (char*) data_buff, bytes_read, data_packet)) {
+        #ifdef DEBUG_MESSAGES
+        printf("%s: creating data packet %d\n", __func__, seq_no);
+        #endif
+
+        if (app_create_data_packet(seq_no, (char*) data_buff, bytes_read, &data_packet)) {
+            fprintf(stderr, "%s: create data packet %d\n", __func__, seq_no);
             return -1;
         }
 
-        if (app_send_data_packet(fd, data_packet)) {
+        #ifdef DEBUG_MESSAGES
+        printf("%s: created data packket %d\n", __func__, seq_no);
+        #endif
+
+        if (app_send_data_packet(fd, &data_packet)) {
+            fprintf(stderr, "%s: failed to send data packet %d\n", __func__, seq_no);
             return -1;
         }
+
+        #ifdef DEBUG_MESSAGES
+        printf("%s: sent data packet %d\n", __func__, seq_no);
+        #endif
 
         seq_no = (seq_no + 1) % 255;
     }
 
     // End Packet
-    app_ctrl_packet_t *end_packet = NULL;
+    app_ctrl_packet_t end_packet;
 
-    if (app_create_ctrl_packet(END, &ctrl_info, end_packet)) {
+    if (app_create_ctrl_packet(END, &ctrl_info, &end_packet)) {
+        fprintf(stderr, "%s: failed to create end control packet\n", __func__);
         return -1;
     }
 
-    if (app_send_ctrl_packet(fd, end_packet)) {
+    if (app_send_ctrl_packet(fd, &end_packet)) {
+        fprintf(stderr, "%s: failed to send end control packet\n", __func__);
         return -1;
     }
 
-    // Clean up
-    free(start_packet);
-    free(end_packet);
+    #ifdef DEBUG_MESSAGES
+    printf("%s: sent END control packket\n", __func__);
+    #endif
 
     // Close file
     if (close(file_fd) == -1) {
-        fprintf(stderr, "close error");
+        fprintf(stderr, "%s: failed to close file transfered\n", __func__);
         return -1;
     }
 

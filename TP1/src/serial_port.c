@@ -226,6 +226,7 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
         }
         else if (ret == READ_FRAME_ERROR) {
             cancel_alarm();
+            fprintf(stderr, "%s: failed to read frame\n", __func__);
             return -1;
         }
         else {
@@ -242,6 +243,10 @@ int send_info_serial_port(LinkLayer *layer, char *buffer, int length) {
         }
     }
 
+    #ifdef DEBUG_MESSAGES
+    fprintf(stderr, "%s: exceed number of retransmissions\n", __func__);
+    #endif
+    
     return -1;
 }
 

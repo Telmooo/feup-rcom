@@ -5,8 +5,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-int main(int argc, char** argv)
-{
+int main(int argc, char** argv) {
     if (argc < 3) {
         printf("Usage: <program_name> <t|r> <0-11> <file_to_transfer>\n");
         return 1;
@@ -41,12 +40,12 @@ int main(int argc, char** argv)
             }
         }
         else {
-            app_ctrl_info_t *file_info = NULL;
+            app_ctrl_info_t file_info;
 
-            if (app_read_file(fd, file_info)) {
+            if (app_read_file(fd, &file_info)) {
                 printf("Failed read file\n");
             } else {
-                printf("File name: %s\nFile Size: %ld\n", file_info->file_name, file_info->file_size);
+                printf("File name: %s\nFile Size: %ld\n", file_info.file_name, file_info.file_size);
             }
 
 
@@ -62,7 +61,6 @@ int main(int argc, char** argv)
             printf("_\n");
 
             free(msg);*/
-            free(file_info);
         }
     //}
 
