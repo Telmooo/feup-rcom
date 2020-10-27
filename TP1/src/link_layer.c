@@ -59,12 +59,40 @@ int llwrite(int fd, char *buffer, int length) {
     }
 
     int ret = send_info_serial_port(&link_layer, stuffed, stuffed_length);
-    free(stuffed);
     
     if (ret != -1) {
         link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
     }
-    return ret;
+
+    if (ret == stuffed_length) {
+        free(stuffed);
+        return length;
+    }
+    else if (ret == -1) {
+        free(stuffed);
+        return -1;
+    }
+    else {
+        // Calculate how many bytes of the original message were sent
+        
+        // Account for the BCC2 being stuffed
+        int stop_at;
+        if (stuffed[stuffed_length - 3] == ESCAPE)
+            stop_at = stuffed_length - 4 - 3;
+        else
+            stop_at = stuffed_length - 4 - 2;
+
+        int original_written = 0;
+        // it = 4 to skip the headers
+        for (int it = 4; it < stop_at && ret > 0; ++it) {
+            if (stuffed[it] != ESCAPE)
+                original_written++;
+            ret--;
+        }
+
+        free(stuffed);
+        return original_written;
+    }
 }
 
 int llread(int fd, char **buffer) {
