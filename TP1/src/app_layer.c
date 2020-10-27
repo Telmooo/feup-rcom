@@ -120,8 +120,13 @@ static int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
         }
     }
 
-    if (llwrite(fd, buffer, packet_size) == -1) { // TODO: fix llwrite return
+    int ret;
+    if ((ret = llwrite(fd, buffer, packet_size)) == -1) {
         fprintf(stderr, "%s: failed to write the control packet\n", __func__);
+        free(buffer);
+        return -1;
+    } else if (ret != packet_size) {
+        fprintf(stderr, "%s: wrote control packet. Expected %d bytes but wrote %d\n", __func__, packet_size, ret);
         free(buffer);
         return -1;
     }
@@ -150,8 +155,13 @@ static int app_send_data_packet(int fd, app_data_packet_t *packet) {
     
     memcpy((void*)&buffer[index], (void*)packet->packet_data, packet->length);
 
-    if (llwrite(fd, buffer, packet_size) == -1) { // TODO: fix llwrite return
-        fprintf(stderr, "%s: failed to write the data packet\n", __func__);
+    int ret;
+    if ((ret = llwrite(fd, buffer, packet_size)) == -1) {
+        fprintf(stderr, "%s: failed to write the control packet\n", __func__);
+        free(buffer);
+        return -1;
+    } else if (ret != packet_size) {
+        fprintf(stderr, "%s: wrote control packet. Expected %d bytes but wrote %d\n", __func__, packet_size, ret);
         free(buffer);
         return -1;
     }
