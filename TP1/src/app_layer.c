@@ -10,6 +10,27 @@
 #include <unistd.h>
 #include <stdlib.h>
 
+static void app_show_progress_bar(device_type type, int progress) {
+    char *intro_message = NULL;
+
+    switch (type) {
+        case TRANSMITTER:
+            intro_message = "Sending file...";
+            break;
+        case RECEIVER:
+            intro_message = "Receiving file...";
+            break;
+        default:
+            intro_message = "";
+    }
+
+    printf("\r\r%s\t%d%% [", intro_message, progress);
+    for (int block = 0; block < progress; block += 5)
+        printf(" ■ ");
+    printf("]");
+    if (progress == 100) printf("\n\tCompleted...\n");
+}
+
 static int get_file_size(int fd) {
     struct stat st;
     if (fstat(fd, &st) == -1) {
@@ -26,6 +47,10 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
         fprintf(stderr, "%s: null destination for out_packet\n", __func__);
         return -1;
     }
+
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: ctrl_info received\n\tFile Size : %ld\n\tFile name : %s\n", __func__, ctrl_info->file_size, ctrl_info->file_name);
+    #endif
 
     out_packet->ctrl_field = ctrl_type;
     out_packet->tlv_packet_count = CTRL_INFO_TLV_COUNT;
@@ -49,6 +74,15 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
     }
 
     memcpy((void*)out_packet->tlv_packets[0].value, (void*)&ctrl_info->file_size, sizeof(uint8_t) * out_packet->tlv_packets[0].length);
+
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: File size TLV packet length : %d\n", __func__, out_packet->tlv_packets[0].length);
+    printf("%s: File size TLV packet value : ", __func__);
+    for (int i = 0; i < out_packet->tlv_packets[0].length; i++) {
+        printf("%c", out_packet->tlv_packets[0].value[i]);
+    }
+    printf("\n");
+    #endif
 
     // File Name
     out_packet->tlv_packets[1].type = TLV_TYPE_FILE_NAME;
@@ -108,6 +142,7 @@ static int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
     }
 
     int index = 0;
+
     buffer[index++] = packet->ctrl_field; // Control Field
     for (int i = 0; i < packet->tlv_packet_count; i++) {
         app_tlv_packet_t *tlv_aux = &(packet->tlv_packets[i]);
@@ -202,7 +237,18 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
 
         switch(type) {
             case TLV_TYPE_FILE_SIZE:
+                #ifdef DEBUG_MESSAGES
+                printf("Buffer: 0x");
+                for (int k = 0; k < length; ++k) {
+                    printf("%02x", buffer[i + k]);
+                }
+                printf("\n");
+                printf("Before copy File Size: %ld\n", out_info->file_size);
+                #endif
                 memcpy((void*)&out_info->file_size, (void*)&buffer[i], length);
+                #ifdef DEBUG_MESSAGES
+                printf("After copy File Size: %ld\n", out_info->file_size);
+                #endif
                 break;
             case TLV_TYPE_FILE_NAME:
             {
@@ -275,11 +321,16 @@ static int app_match_ctrl_info(app_ctrl_info_t *info1, app_ctrl_info_t *info2) {
 }
 
 static app_ctrl_info_t* app_cpy_info_packet(app_ctrl_info_t *dest, app_ctrl_info_t *src) {
-    dest = (app_ctrl_info_t*)malloc(sizeof(app_ctrl_info_t));
+    #ifdef DEBUG_MESSAGES
+    printf("SRC File Name: %s\nSRC File Size: %ld\n", src->file_name, src->file_size);
+    #endif
     dest->file_size = src->file_size;
     int length = strlen(src->file_name);
     dest->file_name = (char*)malloc(sizeof(char) * length);
     memcpy(dest->file_name, src->file_name, length);
+    #ifdef DEBUG_MESSAGES
+    printf("DEST File Name: %s\nDEST File Size: %ld\n", dest->file_name, dest->file_size);
+    #endif
     return dest;
 }
 
@@ -331,6 +382,8 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     int sequence_number = 0;
     int hasData = 1;
 
+    int total_bytes_read = 0;
+
     while (hasData) {
 
         if ((bytes_read = llread(fd, &buffer)) <= 0) {
@@ -356,6 +409,10 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
             return -1;
         }
 
+        total_bytes_read += size;
+
+        app_show_progress_bar(RECEIVER, (int)( (float)total_bytes_read / start_info.file_size * 100));
+
         sequence_number = (sequence_number + 1) % 255;
     }
 
@@ -378,6 +435,10 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     app_cpy_info_packet(file_info, &start_info);
 
+    #ifdef DEBUG_MESSAGES
+    printf("Post Copy File Name: %s\nPost Copy File Size: %ld\n", file_info->file_name, file_info->file_size);
+    #endif
+
     free(start_info.file_name);
     free(end_info.file_name);
     return 0;
@@ -398,7 +459,7 @@ int app_send_file(int fd, char *filename) {
         return -1;
     }
 
-    int file_size = get_file_size(fd);
+    int file_size = get_file_size(file_fd);
 
     if (file_size == -1) {
         fprintf(stderr, "%s: failed to get file size\n", __func__);
@@ -411,26 +472,41 @@ int app_send_file(int fd, char *filename) {
         .file_size = file_size
     };
 
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: ctrl_info defined\n\tFile Size : %ld\n\tFile name : %s\n", __func__, ctrl_info.file_size, ctrl_info.file_name);
+    #endif
+
     app_ctrl_packet_t start_packet;
+
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: creating start control packet\n", __func__);
+    #endif
 
     if (app_create_ctrl_packet(START, &ctrl_info, &start_packet)) {
         fprintf(stderr, "%s: failed to create start control packet\n", __func__);
         return -1;
     }
 
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: created start control packet\n", __func__);
+    #endif
+
     if (app_send_ctrl_packet(fd, &start_packet)) {
         fprintf(stderr, "%s: failed to send start control packet\n", __func__);
         return -1;
     }
 
-    #ifdef DEBUG_MESSAGES
-    printf("%s: sent START control packket\n", __func__);
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: sent start control packet\n", __func__);
     #endif
 
     // Data Packets
     uint8_t seq_no = 0;
     
     uint8_t data_buff[CHUNK_SIZE];
+
+    int total_bytes_written = 0;
+
     int bytes_read;
     while ((bytes_read = read(file_fd, data_buff, CHUNK_SIZE)) != 0) {
         
@@ -441,7 +517,7 @@ int app_send_file(int fd, char *filename) {
 
         app_data_packet_t data_packet;
 
-        #ifdef DEBUG_MESSAGES
+        #ifdef DEBUG_APP_DATA_PACKET
         printf("%s: creating data packet %d\n", __func__, seq_no);
         #endif
 
@@ -450,8 +526,8 @@ int app_send_file(int fd, char *filename) {
             return -1;
         }
 
-        #ifdef DEBUG_MESSAGES
-        printf("%s: created data packket %d\n", __func__, seq_no);
+        #ifdef DEBUG_APP_DATA_PACKET
+        printf("%s: created data packet %d\n", __func__, seq_no);
         #endif
 
         if (app_send_data_packet(fd, &data_packet)) {
@@ -459,9 +535,13 @@ int app_send_file(int fd, char *filename) {
             return -1;
         }
 
-        #ifdef DEBUG_MESSAGES
+        #ifdef DEBUG_APP_DATA_PACKET
         printf("%s: sent data packet %d\n", __func__, seq_no);
         #endif
+
+        total_bytes_written += bytes_read;
+
+        app_show_progress_bar(TRANSMITTER, (int)( (float)total_bytes_written / ctrl_info.file_size * 100.0 ));
 
         seq_no = (seq_no + 1) % 255;
     }
@@ -469,18 +549,26 @@ int app_send_file(int fd, char *filename) {
     // End Packet
     app_ctrl_packet_t end_packet;
 
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: creating end control packet\n", __func__);
+    #endif
+
     if (app_create_ctrl_packet(END, &ctrl_info, &end_packet)) {
         fprintf(stderr, "%s: failed to create end control packet\n", __func__);
         return -1;
     }
+
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: created end control packet\n", __func__);
+    #endif
 
     if (app_send_ctrl_packet(fd, &end_packet)) {
         fprintf(stderr, "%s: failed to send end control packet\n", __func__);
         return -1;
     }
 
-    #ifdef DEBUG_MESSAGES
-    printf("%s: sent END control packket\n", __func__);
+    #ifdef DEBUG_APP_CTRL_PACKET
+    printf("%s: sent end control packet\n", __func__);
     #endif
 
     // Close file
