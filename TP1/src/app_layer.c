@@ -1,20 +1,23 @@
-#include "../include/app_layer.h"
+#include "app_layer.h"
+
+#include "link_layer.h"
 
 #include <stdio.h>
 #include <sys/types.h>
-#include <sys/stats.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdlib.h>
 
-int file_size(int fd) {
+static int get_file_size(int fd) {
     struct stat st;
     fstat(fd, &st);
     return st.st_size;
 }
 
-int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ctrl_info, app_ctrl_packet_t *out_packet) {
-    int file_name_size = strlen(ctrl_info->file_name);
+static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ctrl_info, app_ctrl_packet_t *out_packet) {
+    // int file_name_size = strlen(ctrl_info->file_name);
 
     out_packet = (app_ctrl_packet_t*)malloc(sizeof(app_ctrl_packet_t));
 
@@ -64,7 +67,7 @@ int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ctrl_info
     return 0;
 }
 
-int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t length, app_data_packet_t *out_packet) {
+static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t length, app_data_packet_t *out_packet) {
 
     out_packet = (app_data_packet_t*)malloc(sizeof(app_data_packet_t));
 
@@ -73,7 +76,7 @@ int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t length, ap
         return -1;
     }
 
-    out_packet->ctrl_field = app_ctrl_type_t.DATA;
+    out_packet->ctrl_field = DATA;
     out_packet->seq_no = seq_number;
     out_packet->length = length;
     out_packet->packet_data = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->length);
@@ -88,7 +91,7 @@ int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t length, ap
     return 0;
 }
 
-int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
+static int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
 
     int packet_size = 1; // Control Field
     for (int i = 0; i < packet->tlv_packet_count; i++) {
@@ -101,7 +104,7 @@ int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
     int index = 0;
     buffer[index++] = packet->ctrl_field; // Control Field
     for (int i = 0; i < packet->tlv_packet_count; i++) {
-        app_tlv_packet_t *tlv_aux = packet->tlv_packets[i];
+        app_tlv_packet_t *tlv_aux = &(packet->tlv_packets[i]);
 
         buffer[index++] = tlv_aux->type;
         buffer[index++] = tlv_aux->length;
@@ -122,7 +125,7 @@ int app_send_ctrl_packet(int fd, app_ctrl_packet_t *packet) {
     return 0;
 }
 
-int app_send_data_packet(int fd, app_data_packet_t *packet) {
+static int app_send_data_packet(int fd, app_data_packet_t *packet) {
 
     int packet_size = 4 + packet->length; // Control Field & SeqNo & Length (2 bytes) & Data Buffer
 
@@ -147,7 +150,7 @@ int app_send_data_packet(int fd, app_data_packet_t *packet) {
     return 0;
 }
 
-int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_type, app_ctrl_info_t *out_info) {
+static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_type, app_ctrl_info_t *out_info) {
 
     if (size < 1) {
         fprintf(stderr, "invalid control packet - empty packet\n");
@@ -214,7 +217,7 @@ int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_type, app
     return 0;
 }
 
-int app_parse_data_packet(char *buffer, int size, int sequence_number, char *write_data, int *write_length) {
+static int app_parse_data_packet(char *buffer, int size, int sequence_number, char *write_data, int *write_length) {
     
     if (size < 4) {
         return -1;
@@ -222,8 +225,8 @@ int app_parse_data_packet(char *buffer, int size, int sequence_number, char *wri
 
     app_ctrl_type_t ctrl_type_read = (uint8_t)buffer[0];
 
-    if (ctrl_type_read != app_ctrl_type_t.DATA) {
-        fprintf(stderr, "invalid data packet - expected control field with value %d got %d\n", app_ctrl_type_t.DATA, ctrl_type_read);
+    if (ctrl_type_read != DATA) {
+        fprintf(stderr, "invalid data packet - expected control field with value %d got %d\n", DATA, ctrl_type_read);
         return -1;
     }
 
@@ -252,11 +255,11 @@ int app_parse_data_packet(char *buffer, int size, int sequence_number, char *wri
 
 }
 
-int app_match_ctrl_info(app_ctrl_info_t *info1, app_ctrl_info_t *info2) {
+static int app_match_ctrl_info(app_ctrl_info_t *info1, app_ctrl_info_t *info2) {
     return (info1->file_size == info2->file_size) && (strcmp(info1->file_name, info2->file_name) == 0);
 }
 
-app_ctrl_info_t* app_cpy_info_packet(app_ctrl_info_t *dest, app_ctrl_info_t *src) {
+static app_ctrl_info_t* app_cpy_info_packet(app_ctrl_info_t *dest, app_ctrl_info_t *src) {
     dest = (app_ctrl_info_t*)malloc(sizeof(app_ctrl_info_t));
     dest->file_size = src->file_size;
     int length = strlen(src->file_name);
@@ -269,8 +272,8 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     char *buffer;
 
-    app_ctrl_info_t *start_info;
-    app_ctrl_info_t *end_info;
+    app_ctrl_info_t *start_info = NULL;
+    app_ctrl_info_t *end_info = NULL;
 
     int bytes_read;
 
@@ -281,7 +284,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
         return -1;
     }
 
-    if (app_parse_ctrl_packet(buffer, bytes_read, app_ctrl_type_t.START, start_info)) {
+    if (app_parse_ctrl_packet(buffer, bytes_read, START, start_info)) {
         return -1;
     }
 
@@ -305,16 +308,16 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     while (hasData) {
 
         if ((bytes_read = llread(fd, &buffer)) <= 0) {
-            fprintf(stderr, "%s: llread failed to read or reached the end without receveing end packet\n", __func__, start_info->file_name);
+            fprintf(stderr, "%s: llread failed to read or reached the end without receveing end packet\n", __func__);
             return -1;
         }
 
-        if (buffer[0] == app_ctrl_type_t.END) {
+        if (buffer[0] == END) {
             hasData = 0;
             continue;
         }
 
-        char *write_data;
+        char *write_data = NULL;
         int size;
 
         if (app_parse_data_packet(buffer, bytes_read, sequence_number, write_data, &size)) {
@@ -330,7 +333,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     // End Packet
 
-    if (app_parse_ctrl_packet(buffer, bytes_read, app_ctrl_type_t.END, end_info)) {
+    if (app_parse_ctrl_packet(buffer, bytes_read, END, end_info)) {
         return -1;
     }
 
@@ -365,7 +368,7 @@ int app_send_file(int fd, char *filename) {
         return -1;
     }
 
-    int file_size = file_size(fd);
+    int file_size = get_file_size(fd);
 
     // Start Packet
     app_ctrl_info_t ctrl_info = {
@@ -373,9 +376,9 @@ int app_send_file(int fd, char *filename) {
         .file_size = file_size
     };
 
-    app_ctrl_packet_t *start_packet;
+    app_ctrl_packet_t *start_packet = NULL;
 
-    if (app_create_ctrl_packet(app_ctrl_type_t.START, &ctrl_info, start_packet)) {
+    if (app_create_ctrl_packet(START, &ctrl_info, start_packet)) {
         return -1;
     }
 
@@ -395,9 +398,9 @@ int app_send_file(int fd, char *filename) {
             return -1;
         }
 
-        app_data_packet_t *data_packet;
+        app_data_packet_t *data_packet = NULL;
 
-        if (app_create_data_packet(seq_no, data_buff, bytes_read, data_packet)) {
+        if (app_create_data_packet(seq_no, (char*) data_buff, bytes_read, data_packet)) {
             return -1;
         }
 
@@ -409,9 +412,9 @@ int app_send_file(int fd, char *filename) {
     }
 
     // End Packet
-    app_ctrl_packet_t *end_packet;
+    app_ctrl_packet_t *end_packet = NULL;
 
-    if (app_create_ctrl_packet(app_ctrl_type_t.END, &ctrl_info, end_packet)) {
+    if (app_create_ctrl_packet(END, &ctrl_info, end_packet)) {
         return -1;
     }
 

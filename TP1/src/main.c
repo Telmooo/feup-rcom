@@ -41,12 +41,12 @@ int main(int argc, char** argv)
             }
         }
         else {
-            app_ctrl_info_t *file_info;
+            app_ctrl_info_t *file_info = NULL;
 
             if (app_read_file(fd, file_info)) {
                 printf("Failed read file\n");
             } else {
-                printf("File name: %s\nFile Size: %d\n", file_info->file_name, file_info->file_size);
+                printf("File name: %s\nFile Size: %ld\n", file_info->file_name, file_info->file_size);
             }
 
 

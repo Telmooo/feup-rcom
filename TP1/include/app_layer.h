@@ -42,13 +42,13 @@ struct _app_ctrl_info {
     long file_size;
     char *file_name;
     // permissions
-}
+};
 
 enum _app_ctrl_type {
     DATA = 1,
     START = 2,
     END = 3
-}
+};
 
 int app_read_file(int fd, app_ctrl_info_t *file_info);
 

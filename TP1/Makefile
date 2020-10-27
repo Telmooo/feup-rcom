@@ -11,7 +11,7 @@ IDIR = ./include
 
 IFLAGS = -I $(IDIR)
 
-SRCS = main.c link_layer.c serial_port.c signal_handling.c state_machine.c
+SRCS = main.c link_layer.c serial_port.c signal_handling.c state_machine.c app_layer.c
 
 SRC  := $(addprefix $(SRCDIR)/, $(SRCS))
 OBJ  := $(addprefix $(ODIR)/, $(SRCS:%.c=%.o))
