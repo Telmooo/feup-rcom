@@ -296,7 +296,11 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     // Open destination file
     int dest_fd;
 
+    #ifdef OVERRIDE_REC_FILE_NAME
+    if ((dest_fd = open(OVERRIDE_REC_FILE_NAME, O_WRONLY | O_CREAT, 0660)) == -1) {
+    #else
     if ((dest_fd = open(start_info->file_name, O_WRONLY | O_CREAT, 0660)) == -1) {
+    #endif
         fprintf(stderr, "%s: failed to open destination file %s\n", __func__, start_info->file_name);
         return -1;
     }

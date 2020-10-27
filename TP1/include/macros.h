@@ -8,6 +8,10 @@
 #define DEBUG_MESSAGES
 #endif
 
+#ifndef OVERRIDE_REC_FILE_NAME
+#define OVERRIDE_REC_FILE_NAME "received.jpg"
+#endif
+
 #define BAUDRATE 0xB38400
 // #define MODEMDEVICE "/dev/ttyS1"
 // #define _POSIX_SOURCE 1 /* POSIX compliant source */

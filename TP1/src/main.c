@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv)
 {
-    if (argc < 4) {
+    if (argc < 3) {
         printf("Usage: <program_name> <t|r> <0-11> <file_to_transfer>\n");
         return 1;
     }
