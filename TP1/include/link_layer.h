@@ -8,11 +8,7 @@ typedef struct linkLayer LinkLayer;
 
 struct linkLayer {
     char port[20]; /*Dispositivo /dev/ttySx, x = 0, 1*/
-    int fd; /** Port File Descriptor */
-    int baudRate; /*Velocidade de transmissão*/
     int sequenceNumber; /*Número de sequência da trama: 0, 1*/
-    int timeout; /*Valor do temporizador: 1 s*/
-    int numTransmissions; /*Número de tentativas em caso de falha*/
     device_type type;
     frame_t* state_machine;
 };
