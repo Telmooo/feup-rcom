@@ -4,21 +4,21 @@
 // #define DEBUG_STATE_MACHINE
 // #endif
 
-#ifndef DEBUG_MESSAGES
-#define DEBUG_MESSAGES
-#endif
+// #ifndef DEBUG_MESSAGES
+// #define DEBUG_MESSAGES
+// #endif
 
-#ifndef DEBUG_APP_CTRL_PACKET
-#define DEBUG_APP_CTRL_PACKET
-#endif
+// #ifndef DEBUG_APP_CTRL_PACKET
+// #define DEBUG_APP_CTRL_PACKET
+// #endif
 
 // #ifndef DEBUG_APP_DATA_PACKET
 // #define DEBUG_APP_DATA_PACKET
 // #endif
 
-#ifndef OVERRIDE_REC_FILE_NAME
-#define OVERRIDE_REC_FILE_NAME "received.jpg"
-#endif
+// #ifndef OVERRIDE_REC_FILE_NAME
+// #define OVERRIDE_REC_FILE_NAME "received.mp4"
+// #endif
 
 #define BAUDRATE 0xB38400
 // #define MODEMDEVICE "/dev/ttyS1"

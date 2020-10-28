@@ -10,7 +10,10 @@
 #include <unistd.h>
 #include <stdlib.h>
 
-static void app_show_progress_bar(device_type type, int progress) {
+#define PROGRESS_STEP 10
+static int progress = 0;
+
+static void app_show_progress_bar(device_type type, int cur_progress) {
     char *intro_message = NULL;
 
     switch (type) {
@@ -24,11 +27,24 @@ static void app_show_progress_bar(device_type type, int progress) {
             intro_message = "";
     }
 
-    printf("\r\r%s\t%d%% [", intro_message, progress);
-    for (int block = 0; block < progress; block += 5)
-        printf(" ■ ");
-    printf("]");
-    if (progress == 100) printf("\n\tCompleted...\n");
+    // Progress only
+    if (cur_progress >= progress + PROGRESS_STEP) {
+        progress += PROGRESS_STEP;
+        printf("%s\t%d%%\n", intro_message, progress);
+    }
+
+    // Progress w/ carriage return (percentage only)
+    // printf("\r%s\t%d%%", intro_message, cur_progress);
+
+    // Progress bar w/ carriage return 
+    // printf("\r%s\t%d%% [", intro_message, cur_progress);
+    // for (int block = 0; block < 100; block += 5)
+    //     if (block < cur_progress)
+    //         printf("■");
+    //     else
+    //         printf(" ");
+    // printf("]");
+    if (cur_progress == 100) printf("\n\tCompleted...\n");
 }
 
 static int get_file_size(int fd) {
@@ -346,6 +362,8 @@ static app_ctrl_info_t* app_cpy_info_packet(app_ctrl_info_t *dest, app_ctrl_info
 
 int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
+    progress = 0;
+
     char *buffer;
 
     app_ctrl_info_t start_info = {
@@ -382,7 +400,8 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     #ifdef OVERRIDE_REC_FILE_NAME
     if ((dest_fd = open(OVERRIDE_REC_FILE_NAME, O_WRONLY | O_CREAT, 0660)) == -1) {
     #else
-    if ((dest_fd = open(start_info->file_name, O_WRONLY | O_CREAT, 0660)) == -1) {
+    char *file_name = file_info->file_name == NULL ? start_info.file_name : file_info->file_name;
+    if ((dest_fd = open(file_name, O_WRONLY | O_CREAT, 0660)) == -1) {
     #endif
         fprintf(stderr, "%s: failed to open destination file %s\n", __func__, start_info.file_name);
         return -1;
@@ -456,6 +475,8 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 }
 
 int app_send_file(int fd, char *filename) {
+
+    progress = 0;
 
     if (filename == NULL) {
         fprintf(stderr, "%s: invalid file name\n", __func__);
