@@ -171,12 +171,17 @@ static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t len
         return -1;
     }
 
+    int previous_length = out_packet->length;
+
     out_packet->ctrl_field = DATA;
     out_packet->seq_no = seq_number;
     out_packet->length = length;
     
-
-    out_packet->packet_data = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->length);
+    if (out_packet->packet_data == NULL) {
+        out_packet->packet_data = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->length);
+    } else if (previous_length < out_packet->length) {
+        out_packet->packet_data = (uint8_t*)realloc(out_packet->packet_data, sizeof(uint8_t) * out_packet->length);
+    }
 
     if (out_packet->packet_data == NULL) {
         fprintf(stderr, "%s: failed to allocate memory for data array from app_data_packet_t\n", __func__);
@@ -644,6 +649,11 @@ int app_send_file(int fd, char *filename) {
 
     int total_bytes_written = 0;
 
+    app_data_packet_t data_packet = {
+        .length = 0,
+        .packet_data = NULL
+    };
+
     int bytes_read;
     while ((bytes_read = read(file_fd, data_buff, CHUNK_SIZE)) != 0) {
         
@@ -657,8 +667,6 @@ int app_send_file(int fd, char *filename) {
 
             return -1;
         }
-
-        app_data_packet_t data_packet;
 
         #ifdef DEBUG_APP_DATA_PACKET
         printf("%s: creating data packet %d\n", __func__, seq_no);
@@ -700,9 +708,9 @@ int app_send_file(int fd, char *filename) {
         app_show_progress_bar(TRANSMITTER, (int)( (float)total_bytes_written / ctrl_info.file_size * 100.0 ));
 
         seq_no = (seq_no + 1) % 255;
-
-        free_data_packet(&data_packet);
     }
+
+    free_data_packet(&data_packet);
 
     // End Packet
     app_ctrl_packet_t end_packet;
