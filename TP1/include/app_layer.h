@@ -7,8 +7,6 @@
 
 #define CTRL_INFO_TLV_COUNT 2
 
-#define CHUNK_SIZE          255
-
 typedef struct _app_ctrl_packet app_ctrl_packet_t;
 
 typedef struct _app_data_packet app_data_packet_t;

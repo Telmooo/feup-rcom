@@ -57,13 +57,12 @@ static inline void expand_data_if_needed(frame_t *this) {
     }
 }
 
-int state_machine_copy_data(frame_t *this, char **dest) {
-    *dest = (char*) malloc(state_machine_get_data_size(this) * sizeof(char));
-    if (*dest == NULL) {
-        printf("state_machine_copy_data: Failed to allocate memory for dest (size = %d elements)\n", state_machine_get_data_size(this));
-        return -1;
+int state_machine_copy_data(frame_t *this, char *dest) {
+    if (dest == NULL) {
+        fprintf(stderr, "%s: Dest char* was NULL\n", __func__);
+        return 1;
     }
-    memcpy(*dest, this->data, state_machine_get_data_size(this) * sizeof(char));
+    memcpy(dest, this->data, state_machine_get_data_size(this) * sizeof(char));
     return 0;
 }
 
@@ -205,6 +204,7 @@ int state_machine_process_char(frame_t *this, char c) {
                 #ifdef DEBUG_STATE_MACHINE
                 printf("\n");
                 #endif
+
                 return 0;
             }
             else {

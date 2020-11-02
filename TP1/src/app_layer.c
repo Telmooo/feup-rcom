@@ -130,6 +130,8 @@ static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t len
     out_packet->ctrl_field = DATA;
     out_packet->seq_no = seq_number;
     out_packet->length = length;
+    
+
     out_packet->packet_data = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->length);
 
     if (out_packet->packet_data == NULL) {
@@ -138,7 +140,7 @@ static int app_create_data_packet(uint8_t seq_number, char *buffer, uint16_t len
     }
 
     memcpy((void*)out_packet->packet_data, (void*)buffer, out_packet->length);
-
+    
     return 0;
 }
 
@@ -202,7 +204,10 @@ static int app_send_data_packet(int fd, app_data_packet_t *packet) {
 
     buffer[index++] = packet->ctrl_field; // Control Field
     buffer[index++] = packet->seq_no; // Sequence Number
-    buffer[index] = packet->length; index += 2; // Length (2 bytes)
+    // buffer[index] = packet->length; index += 2; // Length (2 bytes)
+
+    buffer[index++] = (uint8_t) (packet->length >> 8);
+    buffer[index++] = (uint8_t) (packet->length);
     
     memcpy((void*)&buffer[index], (void*)packet->packet_data, packet->length);
 
@@ -326,8 +331,7 @@ static int app_parse_data_packet(char *buffer, int size, int sequence_number, ch
         return -1;
     }
 
-    uint16_t length;
-    memcpy(&length, &buffer[2], sizeof(uint16_t));
+    uint16_t length = (((uint8_t) buffer[2]) << 8) + (uint8_t) buffer[3];
 
     if (length + 4 != size) {
         fprintf(stderr, "%s: invalid data packet received - mismatch on data size, expected %d got %d\n", __func__, size - 4, length);
@@ -364,7 +368,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     progress = 0;
 
-    char *buffer;
+    char buffer[FRAME_MAX_SIZE];
 
     app_ctrl_info_t start_info = {
         .file_name = NULL,
@@ -379,7 +383,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     // Start Packets
 
-    if ((bytes_read = llread(fd, &buffer)) <= 0) {
+    if ((bytes_read = llread(fd, buffer)) <= 0) {
         fprintf(stderr, "%s: failed to read start packet\n", __func__);
         return -1;
     }
@@ -415,7 +419,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     while (hasData) {
 
-        if ((bytes_read = llread(fd, &buffer)) <= 0) {
+        if ((bytes_read = llread(fd, buffer)) <= 0) {
             fprintf(stderr, "%s: failed to read or reached the end without receveing end packet\n", __func__);
             return -1;
         }

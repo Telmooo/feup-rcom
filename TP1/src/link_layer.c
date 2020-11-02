@@ -143,27 +143,26 @@ static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
     }
 }
 
-static int stuff_frame(char **stuffed, char *buffer, int length, int sequence_number) {
-    *stuffed = (char*) malloc((5 + length * 2 + 2) * sizeof(char));
-    if (*stuffed == NULL) {
-        printf("Failed to allocate stuffed frame\n");
+static int stuff_frame(char *stuffed, char *buffer, int length, int sequence_number) {
+    if (stuffed == NULL) {
+        fprintf(stderr, "%s: Stuffed frame was a NULL pointer\n", __func__);
         return -1;
     }
 
-    (*stuffed)[0] = FLAG;
-    (*stuffed)[1] = A_EMISSOR;
-    (*stuffed)[2] = C_INFORMATION(sequence_number);
-    (*stuffed)[3] = A_EMISSOR ^ C_INFORMATION(sequence_number);
+    stuffed[0] = FLAG;
+    stuffed[1] = A_EMISSOR;
+    stuffed[2] = C_INFORMATION(sequence_number);
+    stuffed[3] = A_EMISSOR ^ C_INFORMATION(sequence_number);
     int stuffed_i = 4;
     
     char bcc2 = 0;
     for (int i = 0; i < length; ++i) {
         bcc2 ^= buffer[i];
-        stuff_char(*stuffed, &stuffed_i, buffer[i]);
+        stuff_char(stuffed, &stuffed_i, buffer[i]);
     }
     
-    stuff_char(*stuffed, &stuffed_i, bcc2);
-    (*stuffed)[stuffed_i++] = FLAG;
+    stuff_char(stuffed, &stuffed_i, bcc2);
+    stuffed[stuffed_i++] = FLAG;
 
     return stuffed_i;
 }
@@ -376,8 +375,8 @@ int llopen(int port, device_type type) {
 }
 
 int llwrite(int fd, char *buffer, int length) {
-    char *stuffed = NULL;
-    int stuffed_length = stuff_frame(&stuffed, buffer, length, link_layer.sequenceNumber);
+    char stuffed[STUFFED_MAX_SIZE];
+    int stuffed_length = stuff_frame(stuffed, buffer, length, link_layer.sequenceNumber);
     if (stuffed_length == -1) {
         return -1;
     }
@@ -389,11 +388,9 @@ int llwrite(int fd, char *buffer, int length) {
     }
 
     if (ret == stuffed_length) {
-        free(stuffed);
         return length;
     }
     else if (ret == -1) {
-        free(stuffed);
         return -1;
     }
     else {
@@ -414,12 +411,11 @@ int llwrite(int fd, char *buffer, int length) {
             ret--;
         }
 
-        free(stuffed);
         return original_written;
     }
 }
 
-int llread(int fd, char **buffer) {
+int llread(int fd, char *buffer) {
     // Read data
     if (read_info_frame(fd)) {
         return -1;
