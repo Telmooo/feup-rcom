@@ -13,6 +13,9 @@
 #define PROGRESS_STEP 10
 static int progress = 0;
 
+char complete_data_packet_buffer[UNSTUFFED_MAX_SIZE];
+
+
 static void free_tlv_packet(app_tlv_packet_t *packet) {
     if (packet == NULL) return;
 
@@ -242,36 +245,36 @@ static int app_send_data_packet(int fd, app_data_packet_t *packet) {
 
     int packet_size = 4 + packet->length; // Control Field & SeqNo & Length (2 bytes) & Data Buffer
 
-    char *buffer = (char*)malloc(sizeof(char) * packet_size);
+    // char *complete_data_packet_buffer = (char*)malloc(sizeof(char) * packet_size);
 
-    if (buffer == NULL) {
-        fprintf(stderr, "%s: failed to allocate memory for buffer to write\n", __func__);
-        return -1;
-    }
+    // if (complete_data_packet_buffer == NULL) {
+    //     fprintf(stderr, "%s: failed to allocate memory for complete_data_packet_buffer to write\n", __func__);
+    //     return -1;
+    // }
 
     int index = 0;
 
-    buffer[index++] = packet->ctrl_field; // Control Field
-    buffer[index++] = packet->seq_no; // Sequence Number
+    complete_data_packet_buffer[index++] = packet->ctrl_field; // Control Field
+    complete_data_packet_buffer[index++] = packet->seq_no; // Sequence Number
     // buffer[index] = packet->length; index += 2; // Length (2 bytes)
 
-    buffer[index++] = (uint8_t) (packet->length >> 8);
-    buffer[index++] = (uint8_t) (packet->length);
+    complete_data_packet_buffer[index++] = (uint8_t) (packet->length >> 8);
+    complete_data_packet_buffer[index++] = (uint8_t) (packet->length);
     
-    memcpy((void*)&buffer[index], (void*)packet->packet_data, packet->length);
+    memcpy((void*)&complete_data_packet_buffer[index], (void*)packet->packet_data, packet->length);
 
     int ret;
-    if ((ret = llwrite(fd, buffer, packet_size)) == -1) {
+    if ((ret = llwrite(fd, complete_data_packet_buffer, packet_size)) == -1) {
         fprintf(stderr, "%s: failed to write the control packet\n", __func__);
-        free(buffer);
+        // free(complete_data_packet_buffer);
         return -1;
     } else if (ret != packet_size) {
         fprintf(stderr, "%s: wrote control packet. Expected %d bytes but wrote %d\n", __func__, packet_size, ret);
-        free(buffer);
+        // free(complete_data_packet_buffer);
         return -1;
     }
 
-    free(buffer);
+    // free(complete_data_packet_buffer);
 
     return 0;
 }
