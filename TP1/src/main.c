@@ -63,6 +63,8 @@ int main(int argc, char** argv) {
         } else {
             printf("File name: %s\nFile Size: %ld\n", file_info.file_name, file_info.file_size);
         }
+
+        if (file_info.file_name != NULL) free(file_info.file_name);
     }
 
     if (llclose(fd)) {

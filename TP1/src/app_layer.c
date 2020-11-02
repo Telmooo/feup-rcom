@@ -13,6 +13,48 @@
 #define PROGRESS_STEP 10
 static int progress = 0;
 
+static void free_tlv_packet(app_tlv_packet_t *packet) {
+    if (packet == NULL) return;
+
+    if (packet->value == NULL) return;
+
+    free(packet->value);
+    packet->value = NULL;
+}
+
+static void free_ctrl_packet(app_ctrl_packet_t *packet) {
+    if (packet == NULL) return;
+
+    if (packet->tlv_packets == NULL) return;
+
+    for (int i = 0; i < packet->tlv_packet_count; i++) {
+        if (&(packet->tlv_packets[i]) != NULL) {
+            free_tlv_packet(&(packet->tlv_packets[i]));
+        }
+    }
+
+    free(packet->tlv_packets);
+    packet->tlv_packets = NULL;
+}
+
+static void free_data_packet(app_data_packet_t *packet) {
+    if (packet == NULL) return;
+
+    if (packet->packet_data == NULL) return;
+
+    free(packet->packet_data);
+    packet->packet_data = NULL;
+}
+
+static void free_ctrl_info(app_ctrl_info_t *info) {
+    if (info == NULL) return;
+
+    if (info->file_name == NULL) return;
+
+    free(info->file_name);
+    info->file_name = NULL;
+}
+
 static void app_show_progress_bar(device_type type, int cur_progress) {
     char *intro_message = NULL;
 
@@ -86,6 +128,7 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
     out_packet->tlv_packets[0].value = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->tlv_packets[0].length);
     if (out_packet->tlv_packets[0].value == NULL) {
         fprintf(stderr, "%s: failed to allocate memory for value arry from app_ctrl_packet_t\n", __func__);
+        free_ctrl_packet(out_packet);
         return -1;
     }
 
@@ -102,14 +145,15 @@ static int app_create_ctrl_packet(app_ctrl_type_t ctrl_type, app_ctrl_info_t *ct
 
     // File Name
     out_packet->tlv_packets[1].type = TLV_TYPE_FILE_NAME;
-    out_packet->tlv_packets[1].length = strlen(ctrl_info->file_name);
+    out_packet->tlv_packets[1].length = strlen(ctrl_info->file_name) + 1;
     out_packet->tlv_packets[1].value = (uint8_t*)malloc(sizeof(uint8_t) * out_packet->tlv_packets[1].length);
     if (out_packet->tlv_packets[1].value == NULL) {
         fprintf(stderr, "%s: failed to allocate memory for value array from tlv_packets in app_ctrl_packet_t\n", __func__);
+        free_ctrl_packet(out_packet);
         return -1;
     }
 
-    memcpy((void*)out_packet->tlv_packets[1].value, (void*)ctrl_info->file_name, out_packet->tlv_packets[1].length);
+    strncpy((char *)out_packet->tlv_packets[1].value, ctrl_info->file_name, out_packet->tlv_packets[1].length);
 
     // Permissions
 
@@ -257,12 +301,14 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
 
         if (i >= size) {
             fprintf(stderr, "%s: invalid control packet received - TLV packet is missing length octet\n", __func__);
+            free_ctrl_info(out_info);
             return -1;
         }
         uint8_t length = (uint8_t)buffer[i++];
 
         if (i + length > size) {
             fprintf(stderr, "%s: invalid control packet received - TLV packet is value(s) octet(s)\n", __func__);
+            free_ctrl_info(out_info);
             return -1;
         }
 
@@ -286,6 +332,7 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
                 out_info->file_name = (char*)malloc(sizeof(char) * length);
                 if (out_info->file_name == NULL) {
                     fprintf(stderr, "%s: failed to allocate memory for file_name from app_ctrl_info_t\n", __func__);
+                    free_ctrl_info(out_info);
                     return -1;
                 }
 
@@ -294,6 +341,7 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
             }
             default:
                 fprintf(stderr, "%s: invalid control packet - unknown TLV packet type received\n", __func__);
+                free_ctrl_info(out_info);
                 return -1;
         }
 
@@ -304,6 +352,7 @@ static int app_parse_ctrl_packet(char *buffer, int size, app_ctrl_type_t ctrl_ty
 
     if (tlv_packets_parsed != CTRL_INFO_TLV_COUNT) {
         fprintf(stderr, "%s: invalid control packet - information is missing\n", __func__);
+        free_ctrl_info(out_info);
         return -1;
     }
 
@@ -355,9 +404,9 @@ static app_ctrl_info_t* app_cpy_info_packet(app_ctrl_info_t *dest, app_ctrl_info
     printf("SRC File Name: %s\nSRC File Size: %ld\n", src->file_name, src->file_size);
     #endif
     dest->file_size = src->file_size;
-    int length = strlen(src->file_name);
+    int length = strlen(src->file_name) + 1;
     dest->file_name = (char*)malloc(sizeof(char) * length);
-    memcpy(dest->file_name, src->file_name, length);
+    strncpy(dest->file_name, src->file_name, length);
     #ifdef DEBUG_MESSAGES
     printf("DEST File Name: %s\nDEST File Size: %ld\n", dest->file_name, dest->file_size);
     #endif
@@ -408,6 +457,7 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     if ((dest_fd = open(file_name, O_WRONLY | O_CREAT, 0660)) == -1) {
     #endif
         fprintf(stderr, "%s: failed to open destination file %s\n", __func__, start_info.file_name);
+        free_ctrl_info(&start_info);
         return -1;
     }
 
@@ -421,6 +471,11 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
         if ((bytes_read = llread(fd, buffer)) <= 0) {
             fprintf(stderr, "%s: failed to read or reached the end without receveing end packet\n", __func__);
+        
+            if (close(dest_fd) == -1)
+                fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+            free_ctrl_info(&start_info);
             return -1;
         }
 
@@ -434,11 +489,21 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
         if (app_parse_data_packet(buffer, bytes_read, sequence_number, &write_data, &size)) {
             fprintf(stderr, "%s: failed to parse data packet received\n", __func__);
+
+            if (close(dest_fd) == -1)
+                fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+            free_ctrl_info(&start_info);
             return -1;
         }
 
         if (write(dest_fd, write_data, size) != size) {
             fprintf(stderr, "%s: failed to write data packet received to destination file\n", __func__);
+            
+            if (close(dest_fd) == -1)
+                fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+            free_ctrl_info(&start_info);
             return -1;
         }
 
@@ -453,17 +518,38 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
 
     if (app_parse_ctrl_packet(buffer, bytes_read, END, &end_info)) {
         fprintf(stderr, "%s: failed to parse end control info\n", __func__);
+
+        if (close(dest_fd) == -1)
+            fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+        free_ctrl_info(&start_info);
         return -1;
     }
 
     if (end_info.file_name == NULL) {
         fprintf(stderr, "%s: invalid end control info - file name is undefined\n", __func__);
+
+        if (close(dest_fd) == -1)
+            fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+        free_ctrl_info(&start_info);
         return -1;
     }
 
     if (!(app_match_ctrl_info(&start_info, &end_info))) {
         fprintf(stderr, "%s: control info match failed - start and end packets are not equal\n", __func__);
+
+        if (close(dest_fd) == -1)
+            fprintf(stderr, "%s: failed to close destination file\n", __func__);
+
+        free_ctrl_info(&start_info);
+        free_ctrl_info(&end_info);
         return -1;
+    }
+
+    if (file_info->file_name != NULL) {
+        free(file_info->file_name);
+        file_info->file_name = NULL;
     }
 
     app_cpy_info_packet(file_info, &start_info);
@@ -472,8 +558,14 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
     printf("Post Copy File Name: %s\nPost Copy File Size: %ld\n", file_info->file_name, file_info->file_size);
     #endif
 
-    free(start_info.file_name);
-    free(end_info.file_name);
+    free_ctrl_info(&start_info);
+    free_ctrl_info(&end_info);
+
+    if (close(dest_fd) == -1) {
+        fprintf(stderr, "%s: failed to close destination file\n", __func__);
+        return -1;
+    } 
+
     return 0;
 
 }
@@ -498,6 +590,10 @@ int app_send_file(int fd, char *filename) {
 
     if (file_size == -1) {
         fprintf(stderr, "%s: failed to get file size\n", __func__);
+
+        if (close(file_fd) == -1)
+            fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
         return -1;
     }
 
@@ -528,6 +624,12 @@ int app_send_file(int fd, char *filename) {
 
     if (app_send_ctrl_packet(fd, &start_packet)) {
         fprintf(stderr, "%s: failed to send start control packet\n", __func__);
+
+        if (close(file_fd) == -1)
+            fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+        free_ctrl_packet(&start_packet);
+
         return -1;
     }
 
@@ -547,6 +649,12 @@ int app_send_file(int fd, char *filename) {
         
         if (bytes_read == -1) {
             fprintf(stderr, "%s: failed to read data from file to be transfered\n", __func__);
+
+            if (close(file_fd) == -1)
+                fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+            free_ctrl_packet(&start_packet);
+
             return -1;
         }
 
@@ -558,6 +666,12 @@ int app_send_file(int fd, char *filename) {
 
         if (app_create_data_packet(seq_no, (char*) data_buff, bytes_read, &data_packet)) {
             fprintf(stderr, "%s: create data packet %d\n", __func__, seq_no);
+
+            if (close(file_fd) == -1)
+                fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+            free_ctrl_packet(&start_packet);
+
             return -1;
         }
 
@@ -567,6 +681,13 @@ int app_send_file(int fd, char *filename) {
 
         if (app_send_data_packet(fd, &data_packet)) {
             fprintf(stderr, "%s: failed to send data packet %d\n", __func__, seq_no);
+
+            if (close(file_fd) == -1)
+                fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+            free_ctrl_packet(&start_packet);
+            free_data_packet(&data_packet);
+
             return -1;
         }
 
@@ -579,6 +700,8 @@ int app_send_file(int fd, char *filename) {
         app_show_progress_bar(TRANSMITTER, (int)( (float)total_bytes_written / ctrl_info.file_size * 100.0 ));
 
         seq_no = (seq_no + 1) % 255;
+
+        free_data_packet(&data_packet);
     }
 
     // End Packet
@@ -590,6 +713,12 @@ int app_send_file(int fd, char *filename) {
 
     if (app_create_ctrl_packet(END, &ctrl_info, &end_packet)) {
         fprintf(stderr, "%s: failed to create end control packet\n", __func__);
+
+        if (close(file_fd) == -1)
+            fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+        free_ctrl_packet(&start_packet);
+
         return -1;
     }
 
@@ -599,8 +728,18 @@ int app_send_file(int fd, char *filename) {
 
     if (app_send_ctrl_packet(fd, &end_packet)) {
         fprintf(stderr, "%s: failed to send end control packet\n", __func__);
+
+        if (close(file_fd) == -1)
+            fprintf(stderr, "%s: failed to close file to be sent\n", __func__);
+
+        free_ctrl_packet(&start_packet);
+        free_ctrl_packet(&end_packet);
+
         return -1;
     }
+
+    free_ctrl_packet(&start_packet);
+    free_ctrl_packet(&end_packet);
 
     #ifdef DEBUG_APP_CTRL_PACKET
     printf("%s: sent end control packet\n", __func__);
