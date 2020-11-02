@@ -7,8 +7,6 @@
 
 #include "macros.h"
 
-// TODO: REALLOCS
-
 static inline int is_control_frame(char control) {
     return  control == C_SET ||
             control == C_DISC ||
@@ -29,32 +27,18 @@ static inline int is_valid_frame(char control) {
 
 frame_t* new_state_machine(device_type dev_type) {
     frame_t *this = (frame_t*) malloc(sizeof(frame_t));
-    this->data = (char*) malloc(sizeof(char) * DATA_DEFAULT_SIZE);
     this->successful = false;
     this->state = STATE_START;
     this->escaped = false;
     this->hasData = false;
     this->dataIndex = 0;
     this->dataSize = 0;
-    this->maxDataSize = DATA_DEFAULT_SIZE;
     this->device_type = dev_type;
     return this;
 }
 
 void free_state_machine(frame_t *this) {
-    free(this->data);
     free(this);
-}
-
-static inline void expand_data_if_needed(frame_t *this) {
-    if (this->dataIndex >= this->maxDataSize) {
-        this->maxDataSize *= 2;
-        this->data = (char*) realloc(this->data, this->maxDataSize);
-        if (this->data == NULL) {
-            printf("Welp, couldn't realloc for a data buffer of size %d.", this->maxDataSize);
-            exit(1);
-        }
-    }
 }
 
 int state_machine_copy_data(frame_t *this, char *dest) {
@@ -93,6 +77,15 @@ inline char state_machine_get_address(frame_t *this) {
 
 inline int state_machine_get_data_size(frame_t *this) {
     return this->dataSize;
+}
+
+static inline int state_machine_add_byte(frame_t *this, char c) {
+    if (this->dataIndex >= UNSTUFFED_MAX_SIZE) {
+        fprintf(stderr, "%s: Received data beyond the limit specified in the macro", __func__);
+        return -1;
+    }
+    this->data[this->dataIndex++] = c;
+    return 0;
 }
 
 int state_machine_process_char(frame_t *this, char c) {
@@ -173,12 +166,16 @@ int state_machine_process_char(frame_t *this, char c) {
         #endif
         if (this->escaped) {
             if (c == ESCAPED_ESCAPE) {
-                expand_data_if_needed(this);
-                this->data[this->dataIndex++] = ESCAPE;
+                if (state_machine_add_byte(this, ESCAPE)) {
+                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
+                    exit(1);
+                }
                 this->escaped = false;
             } else if (c == ESCAPED_FLAG) {
-                expand_data_if_needed(this);
-                this->data[this->dataIndex++] = FLAG;
+                if (state_machine_add_byte(this, FLAG)) {
+                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
+                    exit(1);
+                }
                 this->escaped = false;               
             } else if (c == FLAG) {
                 this->state = STATE_FLAG_RCV;
@@ -209,8 +206,10 @@ int state_machine_process_char(frame_t *this, char c) {
             }
             else {
                 // Regular data
-                expand_data_if_needed(this);
-                this->data[this->dataIndex++] = c;
+                if (state_machine_add_byte(this, c)) {
+                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
+                    exit(1);
+                }
             }
         }
 

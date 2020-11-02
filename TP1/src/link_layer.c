@@ -111,14 +111,14 @@ static int read_frame(int fd, char address, char control) {
             if (state_machine_process_char(link_layer.state_machine, c) == 0) {
                 if (address != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->address != address) {
                     #ifdef DEBUG_MESSAGES
-                    printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, layer->state_machine->address);
+                    printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, link_layer.state_machine->address);
                     #endif
                     continue;
                 }
 
                 if (control != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->control != control) {
                     #ifdef DEBUG_MESSAGES
-                    printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, layer->state_machine->control);
+                    printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, link_layer.state_machine->control);
                     #endif
                     continue;
                 }

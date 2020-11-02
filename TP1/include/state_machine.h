@@ -2,6 +2,7 @@
 
 #include <stdbool.h>
 #include "enums.h"
+#include "macros.h"
 
 typedef struct _frame frame_t;
 
@@ -28,6 +29,6 @@ struct _frame {
     device_type dev_type;
     char address, control, device_type;
     bool escaped, hasData, successful;
-    int dataIndex, dataSize, maxDataSize;
-    char* data;
+    int dataIndex, dataSize;
+    char data[UNSTUFFED_MAX_SIZE];
 };
