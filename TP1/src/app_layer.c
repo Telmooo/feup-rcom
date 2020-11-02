@@ -73,13 +73,14 @@ static void app_show_progress_bar(device_type type, int cur_progress) {
     }
 
     // Progress only
-    if (cur_progress >= progress + PROGRESS_STEP) {
-        progress += PROGRESS_STEP;
-        printf("%s\t%d%%\n", intro_message, progress);
-    }
+    // if (cur_progress >= progress + PROGRESS_STEP) {
+    //     progress = cur_progress;
+    //     printf("%s\t%d%%\n", intro_message, progress);
+    // }
 
     // Progress w/ carriage return (percentage only)
-    // printf("\r%s\t%d%%", intro_message, cur_progress);
+    printf("\r%s\t%d%%\r", intro_message, cur_progress);
+    fflush(stdout);
 
     // Progress bar w/ carriage return 
     // printf("\r%s\t%d%% [", intro_message, cur_progress);
@@ -89,7 +90,7 @@ static void app_show_progress_bar(device_type type, int cur_progress) {
     //     else
     //         printf(" ");
     // printf("]");
-    if (cur_progress == 100) printf("\n\tCompleted...\n");
+    if (cur_progress >= 100) printf("\n\tCompleted...\n");
 }
 
 static int get_file_size(int fd) {

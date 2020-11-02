@@ -2,6 +2,7 @@
 #include "link_layer.h"
 #include "signal_handling.h"
 
+#include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -42,6 +43,9 @@ int main(int argc, char** argv) {
         return 1;
     }
 
+    struct timeval tvalBefore, tvalAfter;
+    gettimeofday (&tvalBefore, NULL);
+    
     if (t == TRANSMITTER) {
         if (app_send_file(fd, argv[3])) {
             printf("Failed send file\n");
@@ -61,11 +65,36 @@ int main(int argc, char** argv) {
         if (app_read_file(fd, &file_info)) {
             printf("Failed read file\n");
         } else {
-            printf("File name: %s\nFile Size: %ld\n", file_info.file_name, file_info.file_size);
+            char unit[4] = " B";
+            double size;
+            if (file_info.file_size > (int) 1e9) {
+                unit[0] = 'G';
+                size = file_info.file_size / 1e9;
+            }
+            else if (file_info.file_size > (int) 1e6) {
+                unit[0] = 'M';
+                size = file_info.file_size / 1e6;
+            }
+            else if (file_info.file_size > (int) 1e3) {
+                unit[0] = 'K';
+                size = file_info.file_size / 1e3;
+            }
+            else {
+                unit[0] = 'B';
+                unit[2] = '\0';
+                size = file_info.file_size;
+            }
+            printf("File name: %s\nFile Size: %.2lf %s\n", file_info.file_name, size, unit);
         }
 
         if (file_info.file_name != NULL) free(file_info.file_name);
     }
+
+    gettimeofday (&tvalAfter, NULL);
+    printf("Transfer took %.6lf seconds\n",
+        (tvalAfter.tv_sec - tvalBefore.tv_sec)
+        + (tvalAfter.tv_usec - tvalBefore.tv_usec) / 1e6
+    );
 
     if (llclose(fd)) {
         printf("Failed to close link layer\n");
