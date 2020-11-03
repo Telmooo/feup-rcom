@@ -556,11 +556,6 @@ int app_read_file(int fd, app_ctrl_info_t *file_info) {
         return -1;
     }
 
-    if (file_info->file_name != NULL) {
-        free(file_info->file_name);
-        file_info->file_name = NULL;
-    }
-
     app_cpy_info_packet(file_info, &start_info);
 
     #ifdef DEBUG_MESSAGES

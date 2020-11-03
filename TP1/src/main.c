@@ -1,69 +1,63 @@
 #include "app_layer.h"
 #include "link_layer.h"
 #include "signal_handling.h"
+#include "utils.h"
 
 #include <sys/time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
-void print_usage() {
-    printf("Usage:\t<program_name> <t> <0-11> <file_to_transfer>\n\t<program_name> <r> <0-11> [file_saved_name]\n");
+void print_usage(char *program_name) {
+    printf( "Program usage:\n"
+            "\t%s <device_type> <port_number> <file_name>\n"
+            "\t\tdevice_type - [T | t] for the transmitter device, [R | r] for the receiver device\n"
+            "\t\tport_number - number of the port, between 0 and 11\n"
+            "\t\tfile_name - file to be transfered in case of the transmitter device or name of the file where content will be saved in case of the receiver device\n"
+            "\t\t(file_name parameter is optional for the receiver, if not specifed file will be saved with the file name of the original)\n",
+            program_name);
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3) {
-        print_usage();
-        return 1;
-    }
-    
-    device_type t = TRANSMITTER;
-    if (argv[1][0] == 'r' || argv[1][0] == 'R') {
-        t = RECEIVER;
-    } else if (argv[1][0] == 't' || argv[1][0] == 'T') {
-        if (argc < 4) {
-            printf("Missing <file_to_transfer> parameter");
-            print_usage();
-            return 1;
-        }
-    }
-    else {
-        print_usage();
+
+    program_info_t program_info;
+
+    if (parse_argv(argc, argv, &program_info)) {
+        print_usage(argv[0]);
         return 1;
     }
 
     if (set_signal_handlers()) {
-        printf("Failed to set signal handlers\n");
+        printf("%s: failed to set signal handlers\n", argv[0]);
         return 1;
     }
 
-    int fd = llopen(atoi(argv[2]), t);
+    int fd = llopen(program_info.port, program_info.dev_type);
     if (fd == -1) {
-        printf("Failed to open link layer\n");
+        printf("%s: failed to open link layer\n", argv[0]);
         return 1;
     }
 
     struct timeval tvalBefore, tvalAfter;
     gettimeofday (&tvalBefore, NULL);
+
+    int ret = 0;
     
-    if (t == TRANSMITTER) {
-        if (app_send_file(fd, argv[3])) {
-            printf("Failed send file\n");
+    if (program_info.dev_type == TRANSMITTER) {
+        if (app_send_file(fd, program_info.file_name)) {
+            printf("%s: file transfer failed\n", argv[0]);
+            ret = 1;
         }
     }
     else {
         app_ctrl_info_t file_info = {
-            .file_name = NULL,
+            .file_name = program_info.file_name,
             .file_size = -1
         };
 
-        if (argc == 4) {
-            file_info.file_name = (char*) malloc((strlen(argv[3]) + 1) * sizeof(char));
-            strcpy(file_info.file_name, argv[3]);
-        }
-
         if (app_read_file(fd, &file_info)) {
-            printf("Failed read file\n");
+            printf("%s: failed to read transfered file\n", argv[0]);
+            ret = 1;
         } else {
             char unit[4] = " B";
             double size;
@@ -84,22 +78,25 @@ int main(int argc, char** argv) {
                 unit[2] = '\0';
                 size = file_info.file_size;
             }
-            printf("File name: %s\nFile Size: %.2lf %s\n", file_info.file_name, size, unit);
+            printf( "File transfered: %s\n"
+                    "File size: %.2lf %s\n"
+                    "File saved as: %s\n",
+                    file_info.file_name, size, unit, program_info.file_name);
         }
 
         if (file_info.file_name != NULL) free(file_info.file_name);
     }
 
     gettimeofday (&tvalAfter, NULL);
-    printf("Transfer took %.6lf seconds\n",
+    printf("Took %.6lf seconds to transfer the file\n",
         (tvalAfter.tv_sec - tvalBefore.tv_sec)
         + (tvalAfter.tv_usec - tvalBefore.tv_usec) / 1e6
     );
 
     if (llclose(fd)) {
-        printf("Failed to close link layer\n");
+        printf("%s: failed to close link layer\n", argv[0]);
         return 1;
     }
 
-    return 0;
+    return ret;
 }
