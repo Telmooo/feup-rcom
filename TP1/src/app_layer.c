@@ -59,11 +59,12 @@ static void free_ctrl_info(app_ctrl_info_t *info) {
 }
 
 static void app_show_progress_bar(device_type type, int cur_progress) {
+    #ifdef PROGRESS_BAR
     char *intro_message = NULL;
 
     switch (type) {
         case TRANSMITTER:
-            intro_message = "Sending file...";
+            intro_message = "Sending file...  ";
             break;
         case RECEIVER:
             intro_message = "Receiving file...";
@@ -72,25 +73,35 @@ static void app_show_progress_bar(device_type type, int cur_progress) {
             intro_message = "";
     }
 
+    #if PROGRESS_BAR == 0
     // Progress only
-    // if (cur_progress >= progress + PROGRESS_STEP) {
-    //     progress = cur_progress;
-    //     printf("%s\t%d%%\n", intro_message, progress);
-    // }
+    if (cur_progress >= progress + PROGRESS_STEP) {
+        progress = cur_progress;
+        printf("%s\t%d%%\n", intro_message, progress);
+    }
+
+    #elif PROGRESS_BAR == 1
 
     // Progress w/ carriage return (percentage only)
     printf("\r%s\t%d%%\r", intro_message, cur_progress);
     fflush(stdout);
 
-    // Progress bar w/ carriage return 
-    // printf("\r%s\t%d%% [", intro_message, cur_progress);
-    // for (int block = 0; block < 100; block += 5)
-    //     if (block < cur_progress)
-    //         printf("■");
-    //     else
-    //         printf(" ");
-    // printf("]");
-    if (cur_progress >= 100) printf("\n\tCompleted...\n");
+    #elif PROGRESS_BAR == 2
+
+    // Progress bar w/ carriage return
+    printf("\r%s\t%d%% [", intro_message, cur_progress);
+    for (int block = 0; block < 100; block += 5)
+        if (block < cur_progress)
+            printf("#");
+        else
+            printf("-");
+    printf("]\r");
+    fflush(stdout);
+
+    #endif
+    #endif
+
+    if (cur_progress >= 100) printf("\n\tCompleted...\n\n");
 }
 
 static int get_file_size(int fd) {

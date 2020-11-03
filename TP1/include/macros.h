@@ -16,20 +16,39 @@
 // #define DEBUG_APP_DATA_PACKET
 // #endif
 
+// Print progress of the file transfer:
+// -> Undefined: None
+// -> 0: Print at least every 10%
+// -> 1: Dynamic percentage only
+// -> 2: Actual progress bar
+#define PROGRESS_BAR 2
+
 // #ifndef OVERRIDE_REC_FILE_NAME
 // #define OVERRIDE_REC_FILE_NAME "received.mp4"
 // #endif
 
+// Chance for I frame errors [0, 1] PER FRAME
+#define RECEIVER_HEADER_ERROR_RATE 0.1
+// Chance for I frame errors [0, 1] PER BYTE
+#define RECEIVER_INFO_ERROR_RATE 0.0001
+
+// Set the same fixed seed for srand
+// #define SET_SEED 12345678
+
 #define BAUDRATE 0xB38400
+
+
 // #define MODEMDEVICE "/dev/ttyS1"
 // #define _POSIX_SOURCE 1 /* POSIX compliant source */
-#define FALSE 0
-#define TRUE 1
+
 
 #define LL_TIMEOUT 1
 #define LL_RETRIES 3
 
 #define DATA_DEFAULT_SIZE 256
+
+#define FALSE 0
+#define TRUE 1
 
 #define FLAG 0x7E
 

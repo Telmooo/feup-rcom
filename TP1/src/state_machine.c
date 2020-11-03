@@ -81,7 +81,7 @@ inline int state_machine_get_data_size(frame_t *this) {
 
 static inline int state_machine_add_byte(frame_t *this, char c) {
     if (this->dataIndex >= UNSTUFFED_MAX_SIZE) {
-        fprintf(stderr, "%s: Received data beyond the limit specified in the macro", __func__);
+        fprintf(stderr, "%s: Received more data bytes than specified in protocol\n", __func__);
         return -1;
     }
     this->data[this->dataIndex++] = c;
@@ -114,6 +114,12 @@ int state_machine_process_char(frame_t *this, char c) {
         printf("A_RCV %x\n", c);
         #endif
         if (is_valid_frame(c)) {
+            #ifdef RECEIVER_HEADER_ERROR_RATE
+            if (is_info_frame(c)
+                && (rand() / (float) RAND_MAX <= RECEIVER_HEADER_ERROR_RATE)) {
+                this->control = (char) rand();
+            }
+            #endif
             this->control = c;
             this->state = STATE_C_RCV;
         }
@@ -161,20 +167,33 @@ int state_machine_process_char(frame_t *this, char c) {
         }
 
     case STATE_DATA:
+        #ifdef RECEIVER_INFO_ERROR_RATE
+        if (rand() / (float) RAND_MAX <= RECEIVER_INFO_ERROR_RATE) {
+            c = (char) rand();
+        }
+        #endif
         #ifdef DEBUG_STATE_MACHINE
         printf("DATA 0x%x ", c);
         #endif
         if (this->escaped) {
             if (c == ESCAPED_ESCAPE) {
                 if (state_machine_add_byte(this, ESCAPE)) {
-                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
-                    exit(1);
+                    fprintf(stderr, "%s: Skipping & Ignoring I frame\n", __func__);
+                    if (c == FLAG)
+                        this->state = STATE_FLAG_RCV;
+                    else
+                        this->state = STATE_START;
+                    return 1;
                 }
                 this->escaped = false;
             } else if (c == ESCAPED_FLAG) {
                 if (state_machine_add_byte(this, FLAG)) {
-                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
-                    exit(1);
+                    fprintf(stderr, "%s: Skipping & Ignoring I frame\n", __func__);
+                    if (c == FLAG)
+                        this->state = STATE_FLAG_RCV;
+                    else
+                        this->state = STATE_START;
+                    return 1;
                 }
                 this->escaped = false;               
             } else if (c == FLAG) {
@@ -207,8 +226,12 @@ int state_machine_process_char(frame_t *this, char c) {
             else {
                 // Regular data
                 if (state_machine_add_byte(this, c)) {
-                    fprintf(stderr, "%s: Critical error, commiting kys\n", __func__);
-                    exit(1);
+                    fprintf(stderr, "%s: Skipping & Ignoring I frame\n", __func__);
+                    if (c == FLAG)
+                        this->state = STATE_FLAG_RCV;
+                    else
+                        this->state = STATE_START;
+                    return 1;
                 }
             }
         }

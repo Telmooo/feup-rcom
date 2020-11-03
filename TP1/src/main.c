@@ -1,9 +1,10 @@
 #include "app_layer.h"
 #include "link_layer.h"
 #include "signal_handling.h"
-#include "utils.h"
+#include "utilities.h"
 
 #include <sys/time.h>
+#include <time.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,15 @@ int main(int argc, char** argv) {
         print_usage(argv[0]);
         return 1;
     }
+
+    #if defined(RECEIVER_INFO_ERROR_RATE) && defined(RECEIVER_INFO_ERROR_RATE)
+        #ifdef SET_SEED
+        srand(SET_SEED);
+        #endif
+        #ifndef SET_SEED
+        srand((unsigned) time(NULL));
+        #endif
+    #endif
 
     if (set_signal_handlers()) {
         printf("%s: failed to set signal handlers\n", argv[0]);
@@ -79,9 +89,9 @@ int main(int argc, char** argv) {
                 size = file_info.file_size;
             }
             printf( "File transfered: %s\n"
-                    "File size: %.2lf %s\n"
-                    "File saved as: %s\n",
-                    file_info.file_name, size, unit, program_info.file_name);
+                    "File saved as: %s\n"
+                    "File size: %.2lf %s\n",
+                    file_info.file_name, program_info.file_name, size, unit);
         }
 
         if (file_info.file_name != NULL) free(file_info.file_name);
