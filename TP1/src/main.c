@@ -38,13 +38,13 @@ int main(int argc, char** argv) {
     #endif
 
     if (set_signal_handlers()) {
-        printf("%s: failed to set signal handlers\n", argv[0]);
+        fprintf(stderr, "%s: failed to set signal handlers\n", argv[0]);
         return 1;
     }
 
     int fd = llopen(program_info.port, program_info.dev_type);
     if (fd == -1) {
-        printf("%s: failed to open link layer\n", argv[0]);
+        fprintf(stderr, "%s: failed to open link layer\n", argv[0]);
         return 1;
     }
 
@@ -55,7 +55,7 @@ int main(int argc, char** argv) {
     
     if (program_info.dev_type == TRANSMITTER) {
         if (app_send_file(fd, program_info.file_name)) {
-            printf("%s: file transfer failed\n", argv[0]);
+            fprintf(stderr, "%s: file transfer failed\n", argv[0]);
             ret = 1;
         }
     }
@@ -66,7 +66,7 @@ int main(int argc, char** argv) {
         };
 
         if (app_read_file(fd, &file_info)) {
-            printf("%s: failed to read transfered file\n", argv[0]);
+            fprintf(stderr, "%s: failed to read transfered file\n", argv[0]);
             ret = 1;
         } else {
             char unit[4] = " B";
@@ -88,23 +88,31 @@ int main(int argc, char** argv) {
                 unit[2] = '\0';
                 size = file_info.file_size;
             }
-            printf( "File transfered: %s\n"
-                    "File saved as: %s\n"
-                    "File size: %.2lf %s\n",
-                    file_info.file_name, program_info.file_name, size, unit);
+            printf( 
+                "File transfered: %s\n"
+                "File saved as: %s\n"
+                "File size: %.2lf %s\n",
+                file_info.file_name,
+                program_info.file_name == NULL ? file_info.file_name : program_info.file_name,
+                size, unit
+            );
         }
 
         if (file_info.file_name != NULL) free(file_info.file_name);
     }
 
     gettimeofday (&tvalAfter, NULL);
-    printf("Took %.6lf seconds to transfer the file\n",
-        (tvalAfter.tv_sec - tvalBefore.tv_sec)
-        + (tvalAfter.tv_usec - tvalBefore.tv_usec) / 1e6
-    );
+    double transferDuration = (tvalAfter.tv_sec - tvalBefore.tv_sec)
+        + (tvalAfter.tv_usec - tvalBefore.tv_usec) / 1e6;
+    
+    if (ret)
+        pritnf("Failed to transfer file after %.6lf seconds\n", transferDuration);
+    else
+        printf("Took %.6lf seconds to transfer the file\n", transferDuration);
+
 
     if (llclose(fd)) {
-        printf("%s: failed to close link layer\n", argv[0]);
+        fprintf(stderr, "%s: failed to close link layer\n", argv[0]);
         return 1;
     }
 
