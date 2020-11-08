@@ -111,14 +111,14 @@ static int read_frame(int fd, char address, char control) {
             if (state_machine_process_char(link_layer.state_machine, c) == 0) {
                 if (address != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->address != address) {
                     #ifdef DEBUG_MESSAGES
-                    printf("Unexpected address field: Expected 0x%x but received 0x%x\n", address, link_layer.state_machine->address);
+                    fprintf(stderr, "%s Unexpected address field: Expected 0x%x but received 0x%x\n", __func__, address, link_layer.state_machine->address);
                     #endif
                     continue;
                 }
 
                 if (control != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->control != control) {
                     #ifdef DEBUG_MESSAGES
-                    printf("Unexpected control field: Expected 0x%x but received 0x%x\n", control, link_layer.state_machine->control);
+                    fprintf(stderr, "%s: Unexpected control field: Expected 0x%x but received 0x%x\n", __func__, control, link_layer.state_machine->control);
                     #endif
                     continue;
                 }
@@ -193,7 +193,7 @@ static int set_serial_port(int fd) {
 static int ack_serial_port(int fd) {
     
     if (read_frame(fd, C_SET, A_EMISSOR) != READ_FRAME_OK) {
-        printf("ack_serial_port: Failed to read control frame\n");
+        fprintf(stderr, "%s: Failed to read control frame\n", __func__);
     }
     else {
         char ua_frame[CONTROL_FRAME_SIZE];
@@ -340,7 +340,7 @@ int llopen(int port, device_type type) {
     link_layer.type = type;
 
     if (type != TRANSMITTER && type != RECEIVER) {
-        printf("llopen device type can only be either TRANSMITTER or RECEIVER\n");
+        fprintf(stderr, "llopen device type can only be either TRANSMITTER or RECEIVER\n", __func__);
         return -1;
     }
 
@@ -348,7 +348,7 @@ int llopen(int port, device_type type) {
 
     int fd = open_serial_port(&link_layer);
     if (fd == -1) {
-        printf("Failed to open serial port\n");
+        fprintf(stderr, "%s: Failed to open serial port\n", __func__);
         return -1;
     }
 
@@ -365,7 +365,7 @@ int llopen(int port, device_type type) {
     }
 
     if (ret != 0) {
-        printf("SET/UA failed\n");
+        fprintf(stderr, "%s: SET/UA failed\n", __func__);
         close_serial_port(fd);
         free_state_machine(link_layer.state_machine);
         return -1;
