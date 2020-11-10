@@ -106,7 +106,7 @@ int main(int argc, char** argv) {
         + (tvalAfter.tv_usec - tvalBefore.tv_usec) / 1e6;
     
     if (ret)
-        pritnf("Failed to transfer file after %.6lf seconds\n", transferDuration);
+        printf("Failed to transfer file after %.6lf seconds\n", transferDuration);
     else
         printf("Took %.6lf seconds to transfer the file\n", transferDuration);
 

@@ -6,7 +6,7 @@
 
 typedef struct _frame frame_t;
 
-frame_t* new_state_machine(device_type dev_type);
+frame_t* new_state_machine();
 void free_state_machine(frame_t *machine);
 
 bool state_machine_is_data(frame_t *this);
@@ -26,8 +26,7 @@ typedef enum _state_machine_states {
 
 struct _frame {
     sm_state_t state;
-    device_type dev_type;
-    char address, control, device_type;
+    char address, control;
     bool escaped, hasData, successful;
     int dataIndex, dataSize;
     char data[UNSTUFFED_MAX_SIZE];

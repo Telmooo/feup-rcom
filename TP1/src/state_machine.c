@@ -25,7 +25,7 @@ static inline int is_valid_frame(char control) {
     return is_control_frame(control) || is_info_frame(control);
 }
 
-frame_t* new_state_machine(device_type dev_type) {
+frame_t* new_state_machine() {
     frame_t *this = (frame_t*) malloc(sizeof(frame_t));
     this->successful = false;
     this->state = STATE_START;
@@ -33,7 +33,6 @@ frame_t* new_state_machine(device_type dev_type) {
     this->hasData = false;
     this->dataIndex = 0;
     this->dataSize = 0;
-    this->device_type = dev_type;
     return this;
 }
 

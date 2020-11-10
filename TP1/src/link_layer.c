@@ -340,11 +340,11 @@ int llopen(int port, device_type type) {
     link_layer.type = type;
 
     if (type != TRANSMITTER && type != RECEIVER) {
-        fprintf(stderr, "llopen device type can only be either TRANSMITTER or RECEIVER\n", __func__);
+        fprintf(stderr, "%s: llopen device type can only be either TRANSMITTER or RECEIVER\n", __func__);
         return -1;
     }
 
-    link_layer.state_machine = new_state_machine(type);
+    link_layer.state_machine = new_state_machine();
 
     int fd = open_serial_port(&link_layer);
     if (fd == -1) {

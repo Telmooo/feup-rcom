@@ -45,8 +45,6 @@
 #define LL_TIMEOUT 1
 #define LL_RETRIES 3
 
-#define DATA_DEFAULT_SIZE 256
-
 #define FALSE 0
 #define TRUE 1
 
@@ -99,4 +97,3 @@
 #define ESCAPED_FLAG 0x5e
 #define ESCAPED_ESCAPE 0x5d
 
-#define BUF_SIZE 256
