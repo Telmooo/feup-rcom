@@ -21,7 +21,7 @@
 // -> 0: Print at least every 10%
 // -> 1: Dynamic percentage only
 // -> 2: Actual progress bar
-// #define PROGRESS_BAR 2
+#define PROGRESS_BAR 0
 
 // #ifndef OVERRIDE_REC_FILE_NAME
 // #define OVERRIDE_REC_FILE_NAME "received.mp4"
@@ -36,7 +36,7 @@
 // #define SET_SEED 12345678
 
 // Set propagation time (microseconds) (simulated)
-// #define T_PROP   0
+#define T_PROP   200000
 
 #define BAUDRATE B38400
 

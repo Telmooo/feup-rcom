@@ -125,7 +125,9 @@ static int read_frame(int fd, char address, char control) {
         } else if (ret == 1) {
             if (state_machine_process_char(link_layer.state_machine, c) == 0) {
                 #ifdef T_PROP
+                int remaining = alarm(0);
                 usleep(T_PROP);
+                set_alarm(remaining);
                 #endif
                 if (address != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->address != address) {
                     #ifdef DEBUG_MESSAGES
