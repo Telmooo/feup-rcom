@@ -26,7 +26,7 @@ typedef enum _state_machine_states {
 
 struct _frame {
     sm_state_t state;
-    char address, control;
+    char address, control, bcc2;
     bool escaped, hasData, successful;
     int dataIndex, dataSize;
     char data[UNSTUFFED_MAX_SIZE];

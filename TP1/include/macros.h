@@ -21,28 +21,28 @@
 // -> 0: Print at least every 10%
 // -> 1: Dynamic percentage only
 // -> 2: Actual progress bar
-#define PROGRESS_BAR 2
+// #define PROGRESS_BAR 2
 
 // #ifndef OVERRIDE_REC_FILE_NAME
 // #define OVERRIDE_REC_FILE_NAME "received.mp4"
 // #endif
 
 // Chance for I frame errors [0, 1] PER FRAME
-#define RECEIVER_HEADER_ERROR_RATE 0.1
-// Chance for I frame errors [0, 1] PER BYTE
-#define RECEIVER_INFO_ERROR_RATE 0.0001
+// #define RECEIVER_HEADER_ERROR_RATE 0.1
+// Chance for I frame errors [0, 1] PER FRAME
+// #define RECEIVER_INFO_ERROR_RATE 0.1
 
 // Set the same fixed seed for srand
 // #define SET_SEED 12345678
 
-#define BAUDRATE 0xB38400
+#define BAUDRATE B38400
 
 
 // #define MODEMDEVICE "/dev/ttyS1"
 // #define _POSIX_SOURCE 1 /* POSIX compliant source */
 
 
-#define LL_TIMEOUT 1
+#define LL_TIMEOUT 2
 #define LL_RETRIES 3
 
 #define FALSE 0
@@ -82,12 +82,14 @@
 
 #define CONTROL_FRAME_SIZE 5
 
-#define FRAME_MAX_SIZE 256
-#define LL_HEADERS 6
+// Defining as "Max size without stuffing"
+#define FRAME_MAX_SIZE 32
+#define LL_HEADERS 5
+#define LL_HEADERS_BCC2 6
 #define APP_HEADERS 4
-#define STUFFED_MAX_SIZE ((FRAME_MAX_SIZE - LL_HEADERS + 1) * 2 + LL_HEADERS - 1)
-#define UNSTUFFED_MAX_SIZE (FRAME_MAX_SIZE - LL_HEADERS + 1)
-#define CHUNK_SIZE (FRAME_MAX_SIZE - LL_HEADERS - APP_HEADERS)
+#define STUFFED_MAX_SIZE ((FRAME_MAX_SIZE - LL_HEADERS) * 2 + LL_HEADERS)
+#define UNSTUFFED_MAX_SIZE (FRAME_MAX_SIZE - LL_HEADERS)
+#define CHUNK_SIZE (FRAME_MAX_SIZE - LL_HEADERS_BCC2 - APP_HEADERS)
 
 #define READ_FRAME_OK 0
 #define READ_FRAME_ERROR -1

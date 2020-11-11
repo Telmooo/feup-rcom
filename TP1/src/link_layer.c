@@ -22,6 +22,15 @@ static LinkLayer link_layer;
 volatile int STOP=FALSE;
 
 struct termios oldtio;
+int port_fd = -1;  // It's a surprise tool that will help us later
+
+void reset_serial_port_atexit() {
+    if (port_fd != -1) {
+        sleep(1);
+        tcsetattr(port_fd, TCSANOW, &oldtio);
+        close(port_fd);
+    }
+}
 
 static int open_serial_port(LinkLayer *layer) {
     int fd = open(layer->port, O_RDWR | O_NOCTTY );
@@ -54,11 +63,17 @@ static int open_serial_port(LinkLayer *layer) {
       exit(-1);
     }
 
+    port_fd = fd;
+    atexit(reset_serial_port_atexit);
+
     return fd;
 }
 
 static int close_serial_port(int fd) {
+
     sleep(1);
+
+    port_fd = -1;
     if (tcsetattr(fd, TCSANOW, &oldtio) < 0) {
         return -1;
     }
@@ -131,7 +146,7 @@ static int read_frame(int fd, char address, char control) {
     return READ_FRAME_ERROR;
 }
 
-static void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
+static inline void stuff_char(char *stuffed, int *stuffed_i, char to_stuff) {
     if (to_stuff == FLAG) {
         stuffed[(*stuffed_i)++] = ESCAPE;
         stuffed[(*stuffed_i)++] = ESCAPED_FLAG;
@@ -220,6 +235,7 @@ static int send_info_serial_port(int fd, char *buffer, int length) {
         send = true;
 
         ret = read_frame(fd, A_EMISSOR, READ_FRAME_IGNORE_CHECK);
+
         // TODO: Refactor to get the cancel_alarm() calls better organized
         if (ret == READ_FRAME_WAS_INTERRUPTED) {
             ntries--;
@@ -382,7 +398,8 @@ int llwrite(int fd, char *buffer, int length) {
     }
 
     int ret = send_info_serial_port(fd, stuffed, stuffed_length);
-    
+
+
     if (ret != -1) {
         link_layer.sequenceNumber = reverse_sequence_number(link_layer.sequenceNumber);
     }
