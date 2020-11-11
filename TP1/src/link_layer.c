@@ -124,6 +124,9 @@ static int read_frame(int fd, char address, char control) {
             }
         } else if (ret == 1) {
             if (state_machine_process_char(link_layer.state_machine, c) == 0) {
+                #ifdef T_PROP
+                usleep(T_PROP);
+                #endif
                 if (address != READ_FRAME_IGNORE_CHECK && link_layer.state_machine->address != address) {
                     #ifdef DEBUG_MESSAGES
                     fprintf(stderr, "%s Unexpected address field: Expected 0x%x but received 0x%x\n", __func__, address, link_layer.state_machine->address);

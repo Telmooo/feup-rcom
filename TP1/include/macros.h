@@ -35,6 +35,9 @@
 // Set the same fixed seed for srand
 // #define SET_SEED 12345678
 
+// Set propagation time (microseconds) (simulated)
+// #define T_PROP   0
+
 #define BAUDRATE B38400
 
 
