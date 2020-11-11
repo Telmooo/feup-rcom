@@ -21,7 +21,7 @@
 // -> 0: Print at least every 10%
 // -> 1: Dynamic percentage only
 // -> 2: Actual progress bar
-#define PROGRESS_BAR 0
+#define PROGRESS_BAR 2
 
 // #ifndef OVERRIDE_REC_FILE_NAME
 // #define OVERRIDE_REC_FILE_NAME "received.mp4"
@@ -36,7 +36,7 @@
 // #define SET_SEED 12345678
 
 // Set propagation time (microseconds) (simulated)
-#define T_PROP   200000
+// #define T_PROP   200000
 
 #define BAUDRATE B38400
 
@@ -86,7 +86,7 @@
 #define CONTROL_FRAME_SIZE 5
 
 // Defining as "Max size without stuffing"
-#define FRAME_MAX_SIZE 32
+#define FRAME_MAX_SIZE 256
 #define LL_HEADERS 5
 #define LL_HEADERS_BCC2 6
 #define APP_HEADERS 4

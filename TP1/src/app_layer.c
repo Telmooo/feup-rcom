@@ -11,7 +11,7 @@
 #include <stdlib.h>
 
 #define PROGRESS_STEP 10
-static int progress = 0;
+static int progress = -100;
 
 char complete_data_packet_buffer[UNSTUFFED_MAX_SIZE];
 
