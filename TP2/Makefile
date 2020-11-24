@@ -1,35 +1,137 @@
 .POSIX:
 
-TARGET = app
-
+# -- C Compiler
 CC = gcc
-CFLAGS = -g -Wall #-Werror
 
-SRCDIR = ./src
-ODIR = ./obj
-IDIR = ./include
+# -- Directories
+# - Shared
+# Source files
+SSDIR = ./shared/src
+# Header files
+SIDIR = ./shared/include
+# Library files
+#SLDIR = ./shared/lib
+# Object files
+SODIR = ./shared/obj
 
-IFLAGS = -I $(IDIR)
+# - Client
+# Source files
+CSDIR = ./client/src
+# Header files
+CIDIR = ./client/include
+# Library files
+#CLDIR = ./client/lib
+# Object files
+CODIR = ./client/obj
 
-SRCS = main.c utils.c ftp.c
+# - Server
+# Source files
+SVSDIR = ./server/src
+# Header files
+SVIDIR = ./server/include
+# Library files
+#SVLDIR = ./server/lib
+# Object files
+SVODIR = ./server/obj
 
-SRC  := $(addprefix $(SRCDIR)/, $(SRCS))
-OBJ  := $(addprefix $(ODIR)/, $(SRCS:%.c=%.o))
+# -- Flags
+# - Shared
+SIFLAGS = -I$(SIDIR)
+#SLFLAGS = -L$(SLDIR)
+SCFLAGS = -g -Wall#-Werror
+# - Client
+CIFLAGS = -I$(CIDIR) $(SIFLAGS)
+#CLFLAGS = -L$(CLDIR) $(SLFLAGS)
+CCFLAGS = -g -Wall#-Werror
+# - Server
+SVIFLAGS = -I$(SVIDIR) $(SIFLAGS)
+#SVLFLAGS = -L$(SVLDIR) $(SVLFLAGS)
+SVCFLAGS = -g -Wall#-Werror
 
-$(TARGET): $(OBJ)
-	@$(CC) -o $@ $(OBJ) $(CFLAGS) $(IFLAGS)
-	@echo "Linking complete!"
+# -- Dependencies
+# - Shared
+SDEPS = $(SODIR)/utils.o
+# - Client
+CDEPS = $(SDEPS) $(CODIR)/ftp.o
+CMAIN = main.o
+CTARGET = app_client
+# - Server
+SVDEPS = $(SDEPS)
+SVMAIN = 
+SVTARGET = app_server
 
-$(OBJ): $(ODIR)/%.o : $(SRCDIR)/%.c
-	@$(CC) $(CFLAGS) $(IFLAGS) -c $< -o $@
-	@echo "Compiled "$<" successfully"
+.PHONY: all client server
 
-.PHONY: clean
-clean:
-	@rm -f $(OBJ)
-	@echo "Cleaned!"
+all: client server
 
-.PHONY: remove
-remove: clean
-	@rm -f $(TARGET)
-	@echo "Everything was cleared"
+client: $(CTARGET)
+
+server: $(SVTARGET)
+
+# -- Create Directories
+.PHONY: makesharedfolders makeclientfolders makeserverfolders
+# - Shared
+makesharedfolders:
+	mkdir -p $(SODIR)
+
+# - Client
+makeclientfolders:
+	mkdir -p $(CODIR)
+
+# - Server
+makeserverfolders:
+	mkdir -p $(SVODIR)
+
+# -- Create Object Files
+# - Shared
+$(SODIR)/%.o: $(SSDIR)/%.c
+	$(CC) $(SCFLAGS) -c $(SIFLAGS) $< -o $@
+
+# - Client
+$(CODIR)/%.o: $(CSDIR)/%.c
+	$(CC) $(CCFLAGS) -c $(CIFLAGS) $< -o $@
+
+# - Server
+$(SVODIR)/%.o: $(SVSDIR)/%.c
+	$(CC) $(SVCFLAGS) -c $(SVIFLAGS) $< -o $@
+
+# -- Create Executables
+# - Client
+$(CTARGET): makesharedfolders makeclientfolders $(CODIR)/$(CMAIN) $(CDEPS)
+	$(CC) $(CCFLAGS) -o $@ $(word 3, $^) $(CDEPS)
+	@echo "Compiled client as "$@" successfully"
+
+# - Server
+$(SVTARGET): makesharedfolders makeserverfolders  $(SVODIR)/$(SVMAIN) $(SVDEPS)
+	$(CC) $(SVCFLAGS) -o $@ $(word 3, $^) $(SVDEPS)
+	@echo "Compiled server as "$@" successfully"
+
+# -- Cleaning up
+.PHONY: clean cleanshared cleanclient cleanserver
+clean: cleanshared
+	@echo "Cleaned everything!"
+
+cleanshared: cleanclient cleanserver
+	rm -rf $(SODIR)
+	@echo "Cleaned shared object files "$(SODIR)
+
+cleanclient:
+	rm -rf $(CODIR)
+	@echo "Cleaned client object files "$(CODIR)
+
+cleanserver:
+	rm -rf $(SVODIR)
+	@echo "Cleaned server object files "$(SVODIR)
+
+
+.PHONY: remove removeclient removeserver
+remove: clean removeclient removeserver
+	@echo "Cleared everything!"
+
+removeclient:
+	rm -f $(CTARGET)
+	@echo "Cleared client executable file "$(CTARGET)
+
+removeserver:
+	rm -f $(SVTARGET)
+	@echo "Cleared server executable file "$(SVTARGET)

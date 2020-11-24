@@ -111,5 +111,6 @@ int ftp_enter_passive_mode(int fd, ftp_psv_mode_info_t *psv_mode_info) {
     }
 
     //  227 Entering Passive Mode (193,136,28,12,19,91)
-    int ip_1, ip_2, ip_3, ip_4, port_high, port_low;
+    //int ip_1, ip_2, ip_3, ip_4, port_high, port_low;
+    return -1;
 }
