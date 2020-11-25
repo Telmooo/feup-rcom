@@ -28,10 +28,24 @@ struct _ftp_pasv_mode_info {
     int port;
 };
 
-int ftp_open(char *ip, int port);
+int ftp_open_client(char *ip, int port);
 
-int wait_for_response(int fd, const char *response);
+int ftp_open_server(char *ip, int port);
+
+int ftp_send_response(int fd, const char *status_code, char *response);
+
+int ftp_match_response(const char *match, const char *response);
+
+int ftp_wait_for_response(int fd, const char *response);
+
+int ftp_get_response(int fd, char *response);
 
 int ftp_login(int fd, url_info_t *ftp_info);
 
 int ftp_enter_passive_mode(int fd, ftp_psv_mode_info_t *psv_mode_info);
+
+int ftp_retrieve_file(int fd, char *path);
+
+int ftp_read_file(int fd, char *path);
+
+int ftp_close_client(int fd);

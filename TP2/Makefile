@@ -50,14 +50,14 @@ SVCFLAGS = -g -Wall#-Werror
 
 # -- Dependencies
 # - Shared
-SDEPS = $(SODIR)/utils.o
+SDEPS = $(SODIR)/utils.o $(SODIR)/ftp.o
 # - Client
-CDEPS = $(SDEPS) $(CODIR)/ftp.o
+CDEPS = $(SDEPS)
 CMAIN = main.o
 CTARGET = app_client
 # - Server
 SVDEPS = $(SDEPS)
-SVMAIN = 
+SVMAIN = main.o
 SVTARGET = app_server
 
 .PHONY: all client server
