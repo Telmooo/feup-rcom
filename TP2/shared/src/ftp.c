@@ -74,17 +74,18 @@ int ftp_send_response(int fd, const char *status_code, char *response) {
 
 int ftp_match_response(const char *match, const char *response) {
     char status_code[8];
-    sscanf(response, "%5[^ ]", status_code);
+    sscanf(response, "%3[^ ]", status_code);
+    printf("%s\n", response);
     return strcmp(match, status_code) == 0;
 }
 
-int ftp_wait_for_response(int fd, const char *response) {
+int ftp_wait_for_response(int fd, const char *match, char *response) {
 
     char buffer[RESPONSE_MAX_SIZE];
 
     int bytes_read = 0;
 
-    while (ftp_match_response(response, buffer) == 0) {
+    while (ftp_match_response(match, buffer) == 0) {
         memset(buffer, 0, bytes_read);
         bytes_read = recv(fd, buffer, RESPONSE_MAX_SIZE, 0);
 
@@ -98,14 +99,17 @@ int ftp_wait_for_response(int fd, const char *response) {
             return -1;
         }
     }
+
+    if (response != NULL)
+    strcpy(response, buffer);
     return 0;
 }
 
 int ftp_get_response(int fd, char *response) {
     memset(response, 0, RESPONSE_MAX_SIZE * sizeof(char));
-
+printf("Before recv\n");
     int bytes_read = recv(fd, response, RESPONSE_MAX_SIZE, 0);
-
+printf("After recv: %s\n", response);
     if (bytes_read == -1) {
         fprintf(stderr, "%s: failed to read from socket\n", __func__);
         return -1;
@@ -123,6 +127,7 @@ int ftp_login(int fd, url_info_t *ftp_info) {
     char buffer[RESPONSE_MAX_SIZE];
     int msg_length;
 
+printf("%s\n",ftp_info->user);
     sprintf(buffer, "user %s\n", ftp_info->user);
 
     msg_length = strlen(buffer);
@@ -132,7 +137,7 @@ int ftp_login(int fd, url_info_t *ftp_info) {
         return -1;
     }
 
-    if (ftp_wait_for_response(fd, FTP_NEED_PSWD)) {
+    if (ftp_wait_for_response(fd, FTP_NEED_PSWD, NULL)) {
         fprintf(stderr, "%s: expected %s but did not receive\n", __func__, FTP_NEED_PSWD);
         return -1;
     }
@@ -147,7 +152,7 @@ int ftp_login(int fd, url_info_t *ftp_info) {
         return -1;
     }
 
-    if (ftp_wait_for_response(fd, FTP_LOGIN_SUCC)) {
+    if (ftp_wait_for_response(fd, FTP_LOGIN_SUCC, NULL)) {
         fprintf(stderr, "%s: login failed, expected %s but did not receive\n", __func__, FTP_LOGIN_SUCC);
         return -1;
     }
@@ -168,29 +173,24 @@ int ftp_enter_passive_mode(int fd, ftp_psv_mode_info_t *psv_mode_info) {
         return -1;
     }
 
-    if (ftp_wait_for_response(fd, FTP_PASSIVE)) {
+    char response[RESPONSE_MAX_SIZE];
+    if (ftp_wait_for_response(fd, FTP_PASSIVE, NULL)) {
         fprintf(stderr, "%s: failed to enter passive mode, expected %s but did not receive\n", __func__, FTP_PASSIVE);
         return -1;
     }
 
     int ip_1, ip_2, ip_3, ip_4, port_high, port_low;
 
-    char response[RESPONSE_MAX_SIZE];
-
-    int bytes_read = ftp_get_response(fd, response);
-
-    if (bytes_read == -1) {
-        fprintf(stderr, "%s: failed to retrieve response from socket\n", __func__);
-        return -1;
-    }
-
-    if (sscanf(response, "%*[^(](%d,%d,%d,%d,%d,%d)", &ip_1, &ip_2, &ip_3, &ip_4, &port_high, &port_low) != 6) {
+printf("%s\n", response);
+    if (sscanf(response+26, "%*[^(](%d,%d,%d,%d,%d,%d)", &ip_1, &ip_2, &ip_3, &ip_4, &port_high, &port_low) != 6) {
         fprintf(stderr, "%s: failed to get IP and Port to open data socket\n", __func__);
         return -1;
     }
 
     sprintf(psv_mode_info->ip, "%d.%d.%d.%d", ip_1, ip_2, ip_3, ip_4);
     psv_mode_info->port = (port_high << 8) + port_low;
+
+printf("%s\n", psv_mode_info->ip);
 
     return 0;
 }
@@ -271,7 +271,7 @@ int ftp_close_client(int fd) {
         return -1;
     }
 
-    if (ftp_wait_for_response(fd, FTP_CLOSE_CONNECT)) {
+    if (ftp_wait_for_response(fd, FTP_CLOSE_CONNECT, NULL)) {
         fprintf(stderr, "%s: expected %s but did not receive\n", __func__, FTP_CLOSE_CONNECT);
         return -1;
     }

@@ -41,24 +41,27 @@ int main(int argc, char **argv) {
         fprintf(stderr, "%s: failed to get server IP\n", argv[0]);
         return 1;
     }
-
+printf("Got ip\n");
     int socket_fd = ftp_open_client(ip, SERVER_PORT);
     if (socket_fd == -1) {
         fprintf(stderr, "%s: failed to open FTP connection\n", argv[0]);
         return 1;
     }
+printf("Opened client\n");
 
-    if (ftp_wait_for_response(socket_fd, FTP_READY)) {
+    if (ftp_wait_for_response(socket_fd, FTP_READY, NULL)) {
         fprintf(stderr, "%s: expected %s but did not receive\n", argv[0], FTP_READY);
         close(socket_fd);
         return 1;
     }
+printf("Waited for response\n");
 
     if (ftp_login(socket_fd, &url_info)) {
         fprintf(stderr, "%s: failed to login\n", argv[0]);
         close(socket_fd);
         return 1;
     }
+printf("Logged in\n");
     
     ftp_psv_mode_info_t data_sock_info;
 
@@ -67,6 +70,7 @@ int main(int argc, char **argv) {
         close(socket_fd);
         return -1;
     }
+printf("Entered passive mode\n");
 
     int data_sock_fd = ftp_open_client(data_sock_info.ip, data_sock_info.port);
 
@@ -74,6 +78,7 @@ int main(int argc, char **argv) {
         fprintf(stderr, "%s: failed to open data socket connection\n", argv[0]);
         return -1;
     }
+printf("Opened client 2\n");
 
     if (ftp_retrieve_file(socket_fd, url_info.path) == -1) {
         fprintf(stderr, "%s: failed to request file from server\n", argv[0]);
@@ -81,6 +86,7 @@ int main(int argc, char **argv) {
         close(socket_fd);
         return -1;
     }
+printf("Retrieved file\n");
 
     if (ftp_read_file(data_sock_fd, url_info.path) == -1) {
         fprintf(stderr, "%s: failed to download file\n", argv[0]);
@@ -88,6 +94,7 @@ int main(int argc, char **argv) {
         close(socket_fd);
         return -1;
     }
+printf("Read file\n");
 
     if (ftp_close_client(socket_fd) == -1) {
         fprintf(stderr, "%s: failed to close connection\n", argv[0]);

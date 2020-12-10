@@ -2,7 +2,7 @@
 
 #include "utils.h"
 
-#define SERVER_PORT 6000
+#define SERVER_PORT 21
 
 #define RESPONSE_MAX_SIZE   512
 
@@ -36,7 +36,7 @@ int ftp_send_response(int fd, const char *status_code, char *response);
 
 int ftp_match_response(const char *match, const char *response);
 
-int ftp_wait_for_response(int fd, const char *response);
+int ftp_wait_for_response(int fd, const char *match, char *response);
 
 int ftp_get_response(int fd, char *response);
 

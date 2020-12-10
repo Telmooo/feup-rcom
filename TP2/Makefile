@@ -54,7 +54,7 @@ SDEPS = $(SODIR)/utils.o $(SODIR)/ftp.o
 # - Client
 CDEPS = $(SDEPS)
 CMAIN = main.o
-CTARGET = app_client
+CTARGET = download
 # - Server
 SVDEPS = $(SDEPS)
 SVMAIN = main.o

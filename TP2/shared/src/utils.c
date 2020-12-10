@@ -10,6 +10,7 @@
 
 char* get_ip(char *host) {
     struct hostent *h;
+    printf("host: %s\n", host);
     if ((h = gethostbyname(host)) == NULL) {
         herror("Failed to get host name\n");
         return NULL;

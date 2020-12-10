@@ -1,7 +1,7 @@
 #pragma once
 
 #define URL_INFO_MAX_SIZE       256
-#define URL_DEFAULT_USER        "anonymous_platypus"
+#define URL_DEFAULT_USER        "anonymous"
 #define URL_DEFAULT_PSWD        "really_strong_password_tm"
 
 #define FILE_BUFFER_MAX_SIZE    2048
