@@ -141,31 +141,34 @@ int ftp_login(int fd, url_info_t *ftp_info) {
     }
 
     char response[RESPONSE_MAX_SIZE];
-    if (ftp_get_response(fd, response) == -1) {
-        fprintf(stderr, "%s: login failed, could not get response\n", __func__);
-    }
 
-    if (ftp_match_response(FTP_NEED_PSWD, response)) {
-        memset(buffer, 0, msg_length);
-
-        sprintf(buffer, "pass %s\n", ftp_info->pswd);
-
-        msg_length = strlen(buffer);
-        if (send(fd, buffer, msg_length, 0) != msg_length) {
-            fprintf(stderr, "%s: write failed to send password properly\n", __func__);
-            return -1;
-        }
-        
+    while (1) {
         if (ftp_get_response(fd, response) == -1) {
-            fprintf(stderr, "%s: login failed, could not get response after password\n", __func__);
+            fprintf(stderr, "%s: login failed, could not get response\n", __func__);
         }
+
+        if (ftp_match_response(FTP_NEED_PSWD, response)) {
+            memset(buffer, 0, msg_length);
+
+            sprintf(buffer, "pass %s\n", ftp_info->pswd);
+
+            msg_length = strlen(buffer);
+            if (send(fd, buffer, msg_length, 0) != msg_length) {
+                fprintf(stderr, "%s: write failed to send password properly\n", __func__);
+                return -1;
+            }
+            
+            if (ftp_get_response(fd, response) == -1) {
+                fprintf(stderr, "%s: login failed, could not get response after password\n", __func__);
+            }
+        }
+
+        if (ftp_match_response(FTP_LOGIN_SUCC, response))
+            return 0;
+
+        memset(response, 0, RESPONSE_MAX_SIZE);    
     }
 
-    if (ftp_match_response(FTP_LOGIN_SUCC, response))
-        return 0;
-    
-
-    fprintf(stderr, "%s: expected %s or %s but did not receive\n", __func__, FTP_NEED_PSWD, FTP_LOGIN_SUCC);
     return -1;
 }
 
